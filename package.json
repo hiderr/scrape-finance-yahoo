@@ -1,4 +1,11 @@
 {
+  "name": "valuation-scraper",
+  "version": "1.0.0",
+  "description": "Scraper for valuation data from Yahoo Finance",
+  "main": "scraper.js",
+  "scripts": {
+    "start": "node scraper.js"
+  },
   "dependencies": {
     "exceljs": "^4.4.0",
     "playwright": "^1.49.1"
