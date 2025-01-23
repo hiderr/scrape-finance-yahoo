@@ -2,12 +2,20 @@
   "name": "valuation-scraper",
   "version": "1.0.0",
   "description": "Scraper for valuation data from Yahoo Finance",
-  "main": "scraper.js",
+  "main": "dist/scraper.js",
   "scripts": {
-    "start": "node scraper.js"
+    "start": "ts-node scraper.ts",
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn scraper.ts"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
     "playwright": "^1.49.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
   }
 }

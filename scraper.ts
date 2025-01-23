@@ -1,8 +1,15 @@
-const { chromium } = require("playwright");
-const fs = require("fs").promises;
-const ExcelJS = require("exceljs");
+import { chromium, Page } from "playwright";
+import * as fs from "fs/promises";
+import ExcelJS from "exceljs";
+import {
+  Selectors,
+  TimeoutOptions,
+  ValuationData,
+  MarketCapMultiplier,
+  MarketCapMultipliers,
+} from "./types";
 
-const SELECTORS = {
+const SELECTORS: Selectors = {
   COOKIE_REJECT: 'button[name="reject"]',
   COOKIE_WIZARD: "div.con-wizard",
   DATE: ".asofdate",
@@ -12,12 +19,12 @@ const SELECTORS = {
   VALUATION_SECTION: 'section[data-testid="valuation-measures"]',
 };
 
-const TIMEOUT_OPTIONS = {
+const TIMEOUT_OPTIONS: TimeoutOptions = {
   timeout: 15000,
   waitUntil: "domcontentloaded",
 };
 
-async function handleCookiePopup(page) {
+async function handleCookiePopup(page: Page): Promise<void> {
   try {
     const rejectButton = await page.waitForSelector(
       SELECTORS.COOKIE_REJECT,
@@ -36,45 +43,56 @@ async function handleCookiePopup(page) {
   }
 }
 
-async function waitForPageLoad(page) {
+async function waitForPageLoad(page: Page): Promise<boolean> {
   try {
     await page.waitForLoadState("domcontentloaded");
     await page.waitForSelector(SELECTORS.VALUATION_SECTION, { timeout: 10000 });
-
     await page.waitForTimeout(2000);
-
     return true;
   } catch (error) {
-    console.log(`Page load check failed: ${error.message}`);
+    console.log(`Page load check failed: ${(error as Error).message}`);
     return false;
   }
 }
 
-async function getValuationMetric(page, index) {
+async function getValuationMetric(page: Page, index: number): Promise<string> {
   try {
     const element = await page.waitForSelector(
       `${SELECTORS.VALUATION_BASE}(${index}) .value`,
       { timeout: 5000 }
     );
-    return element ? await element.textContent() : "N/A";
+    return element ? (await element.textContent()) || "N/A" : "N/A";
   } catch {
     return "N/A";
   }
 }
 
-async function scrapeValuationData(page, ticker) {
+function convertMarketCap(marketCap: string): number | null {
+  if (!marketCap || marketCap === "N/A") return null;
+
+  const value = parseFloat(marketCap.replace(/[^\d.]/g, ""));
+  const multiplier = marketCap.slice(-1).toUpperCase() as MarketCapMultiplier;
+
+  const multipliers: MarketCapMultipliers = {
+    T: 1e12,
+    B: 1e9,
+    M: 1e6,
+    K: 1e3,
+  };
+
+  return value * (multipliers[multiplier] || 1);
+}
+
+async function scrapeValuationData(
+  page: Page,
+  ticker: string
+): Promise<ValuationData | null> {
   try {
     await page.goto(
       `https://finance.yahoo.com/quote/${ticker}/`,
       TIMEOUT_OPTIONS
     );
-    const isPageLoaded = await waitForPageLoad(page);
-
-    if (!isPageLoaded) {
-      console.log(`Failed to load page for ${ticker}, retrying...`);
-      await page.reload();
-      await waitForPageLoad(page);
-    }
+    await waitForPageLoad(page);
 
     const valuationSection = await page.$(SELECTORS.VALUATION_SECTION);
     if (!valuationSection) {
@@ -82,10 +100,13 @@ async function scrapeValuationData(page, ticker) {
       return null;
     }
 
-    const data = {
+    const marketCap = (await getValuationMetric(page, 1)) || "N/A";
+
+    const data: ValuationData = {
       ticker,
       date: (await page.locator(SELECTORS.DATE).textContent()) || "N/A",
-      marketCap: (await getValuationMetric(page, 1)) || "N/A",
+      marketCap,
+      marketCapNumeric: convertMarketCap(marketCap),
       enterpriseValue: (await getValuationMetric(page, 2)) || "N/A",
       trailingPE: (await getValuationMetric(page, 3)) || "N/A",
       forwardPE: (await getValuationMetric(page, 4)) || "N/A",
@@ -98,12 +119,15 @@ async function scrapeValuationData(page, ticker) {
 
     return data;
   } catch (error) {
-    console.error(`Error scraping data for ${ticker}:`, error.message);
+    console.error(
+      `Error scraping data for ${ticker}:`,
+      (error as Error).message
+    );
     return null;
   }
 }
 
-async function saveToExcel(data) {
+async function saveToExcel(data: ValuationData[]): Promise<string> {
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet("Valuation Data");
 
@@ -111,12 +135,16 @@ async function saveToExcel(data) {
     header:
       key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, " $1"),
     key,
-    width: 15,
+    width: key === "marketCapNumeric" ? 20 : 15,
   }));
 
   worksheet.columns = columns;
   worksheet.addRows(data);
   worksheet.getRow(1).font = { bold: true };
+
+  // Форматируем числовую колонку
+  const marketCapNumericColumn = worksheet.getColumn("marketCapNumeric");
+  marketCapNumericColumn.numFmt = "#,##0";
 
   const fileName = `valuation_data_${
     new Date().toISOString().split("T")[0]
@@ -126,7 +154,7 @@ async function saveToExcel(data) {
   return fileName;
 }
 
-async function getTickers() {
+async function getTickers(): Promise<string[]> {
   const content = await fs.readFile("tickers.txt", "utf-8");
   return content
     .split("\n")
@@ -134,7 +162,7 @@ async function getTickers() {
     .map((ticker) => ticker.trim());
 }
 
-async function main() {
+async function main(): Promise<void> {
   const browser = await chromium.launch({
     headless: false,
     slowMo: 50,
@@ -143,7 +171,7 @@ async function main() {
 
   try {
     const tickers = await getTickers();
-    const results = [];
+    const results: ValuationData[] = [];
 
     await page.goto(`https://finance.yahoo.com/quote/${tickers[0]}/`);
     await handleCookiePopup(page);
@@ -159,17 +187,20 @@ async function main() {
 
     const fileName = await saveToExcel(results);
     console.log(`Data saved to file: ${fileName}`);
+  } catch (error) {
+    console.error("Script failed:", (error as Error).message);
+    process.exit(1);
   } finally {
     await browser.close();
   }
 }
 
-process.on("unhandledRejection", (error) => {
+process.on("unhandledRejection", (error: Error) => {
   console.error("Unhandled promise rejection:", error);
   process.exit(1);
 });
 
-main().catch((error) => {
+main().catch((error: Error) => {
   console.error("Script failed:", error);
   process.exit(1);
 });
