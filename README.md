@@ -1,13 +1,13 @@
 Yahoo Finance Scraper
 
-Скрипт для автоматического сбора данных о валюационных метриках компаний с Yahoo Finance.
+Script for automatic collection of company valuation metrics from Yahoo Finance.
 
-## ФУНКЦИОНАЛЬНОСТЬ
+## FUNCTIONALITY
 
-- Чтение тикеров компаний из файла
-- Автоматический сбор данных с Yahoo Finance для каждого тикера
-- Сохранение результатов в Excel файл
-- Сбор следующих метрик:
+- Reading company tickers from file
+- Automatic data collection from Yahoo Finance for each ticker
+- Saving results to Excel file
+- Collection of the following metrics:
   - Market Cap
   - Enterprise Value
   - Trailing P/E
@@ -18,36 +18,36 @@ Yahoo Finance Scraper
   - EV/Revenue
   - EV/EBITDA
 
-## УСТАНОВКА
+## INSTALLATION
 
-1. Клонировать репозиторий:
+1. Clone repository:
    git clone <repository-url>
 
-2. Перейти в директорию проекта:
+2. Navigate to project directory:
    cd yahoo-finance-scraper
 
-3. Установить зависимости:
+3. Install dependencies:
    npm install
 
-## ИСПОЛЬЗОВАНИЕ
+## USAGE
 
-1. Добавьте тикеры компаний в файл 'tickers.txt' (по одному тикеру на строку)
-2. Запустите скрипт:
+1. Add company tickers to 'tickers.txt' file (one ticker per line)
+2. Run the script:
    node scraper.js
-3. Результаты будут сохранены в файл 'valuation_data_YYYY-MM-DD.xlsx'
+3. Results will be saved to 'valuation_data_YYYY-MM-DD.xlsx'
 
-## СТРУКТУРА ПРОЕКТА
+## PROJECT STRUCTURE
 
-- scraper.js - основной скрипт для сбора данных
-- tickers.txt - файл со списком тикеров
-- package.json - файл с зависимостями проекта
-- .gitignore - список игнорируемых файлов для Git
+- scraper.js - main script for data collection
+- tickers.txt - file with list of tickers
+- package.json - project dependencies file
+- .gitignore - list of ignored files for Git
 
-## ЗАВИСИМОСТИ
+## DEPENDENCIES
 
-- Playwright - для автоматизации браузера
-- ExcelJS - для работы с Excel файлами
+- Playwright - for browser automation
+- ExcelJS - for Excel file operations
 
-## ЛИЦЕНЗИЯ
+## LICENSE
 
 ISC
