@@ -1,0 +1,4 @@
+LNT
+AAPL
+MSFT
+GOOGL 
