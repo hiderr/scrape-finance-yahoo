@@ -94,29 +94,6 @@ export class DividendFilter {
         company[header] = cellValue
       })
 
-      const marketCapHeaders = ['Market Cap', 'MarketCap', 'Mkt Cap']
-      for (const header of marketCapHeaders) {
-        if (headers[header]) {
-          const marketCapValue = row.getCell(headers[header]).value
-          company.marketCap = this.extractMarketCap(marketCapValue)
-          break
-        }
-      }
-
-      if (company.marketCap === undefined && company.price) {
-        const sharesHeaders = ['Shares Outstanding', 'Shares Out', 'Outstanding Shares']
-        for (const header of sharesHeaders) {
-          if (headers[header]) {
-            const sharesValue = row.getCell(headers[header]).value
-            const shares = this.extractMarketCap(sharesValue)
-            if (shares) {
-              company.marketCap = company.price * shares
-              break
-            }
-          }
-        }
-      }
-
       companies.push(company)
     }
 
@@ -141,20 +118,7 @@ export class DividendFilter {
         return false
       }
 
-      console.log('company.exDate', company.exDate)
-
       if (!this.isExDateCurrent(company.exDate)) {
-        return false
-      }
-
-      if (company.eps1Y && company.eps1Y !== 0) {
-        const payoutRatio = (company.annualized / company.eps1Y) * 100
-        if (payoutRatio > FilterCriteria.MAX_PAYOUT_RATIO) {
-          return false
-        }
-      }
-
-      if (company.marketCap !== undefined && company.marketCap < FilterCriteria.MIN_MARKET_CAP) {
         return false
       }
 
@@ -229,7 +193,12 @@ export class DividendFilter {
     const fileName = `Filtered-Dividend-Champions-${new Date().toISOString().split('T')[0]}.xlsx`
     await outputWorkbook.xlsx.writeFile(fileName)
 
-    console.log(`Результаты сохранены в файл ${fileName}`)
+    const tickers = companies.map(company => company.symbol.replace(/\./g, '')).join('\n')
+    await fs.promises.writeFile('tickers.txt', tickers)
+
+    console.log(`Результаты сохранены в файлы:`)
+    console.log(`- Excel: ${fileName}`)
+    console.log(`- Тикеры: tickers.txt`)
   }
 }
 

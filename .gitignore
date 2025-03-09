@@ -31,4 +31,4 @@ yarn-error.log*
 
 # Project specific
 *.xlsx
-tickers.txt 
+tickers.txt
