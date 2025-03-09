@@ -1,53 +1,85 @@
-Yahoo Finance Scraper
+# Инвестиционные скрипты
 
-Script for automatic collection of company valuation metrics from Yahoo Finance.
+Этот проект содержит набор скриптов для анализа инвестиционных данных.
 
-## FUNCTIONALITY
+## Инструменты
 
-- Reading company tickers from file
-- Automatic data collection from Yahoo Finance for each ticker
-- Saving results to Excel file
-- Collection of the following metrics:
-  - Market Cap
-  - Enterprise Value
-  - Trailing P/E
-  - Forward P/E
-  - PEG Ratio
-  - Price/Sales
-  - Price/Book
-  - EV/Revenue
-  - EV/EBITDA
+### 1. Фильтр дивидендных компаний
 
-## INSTALLATION
+Скрипт для фильтрации компаний из списка U.S. Dividend Champions по определенным критериям.
 
-1. Clone repository:
-   git clone <repository-url>
+#### Критерии фильтрации
 
-2. Navigate to project directory:
-   cd yahoo-finance-scraper
+Скрипт отбирает компании, которые соответствуют следующим критериям:
 
-3. Install dependencies:
-   npm install
+1. Выплачивают дивиденды не менее 15 лет
+2. Текущая дивидендная доходность не менее 2,5%
+3. Выплачивают дивиденды не реже 4 раз в год
+4. Рост дивидендов за последний год не менее 2%
+5. Увеличивали дивиденды в последний год (проверка по дате ex-div)
+6. Выплатили на дивиденды не более 70% от прибыли
+7. Рыночная капитализация не менее 2 млрд долларов
 
-## USAGE
+#### Использование
 
-1. Add company tickers to 'tickers.txt' file (one ticker per line)
-2. Run the script:
-   node scraper.js
-3. Results will be saved to 'valuation_data_YYYY-MM-DD.xlsx'
+```bash
+# Запуск фильтра дивидендных компаний
+npm run filter-dividends
+```
 
-## PROJECT STRUCTURE
+Результаты фильтрации будут сохранены в файл `Filtered-Dividend-Champions-YYYY-MM-DD.xlsx` в корневой директории проекта.
 
-- scraper.js - main script for data collection
-- tickers.txt - file with list of tickers
-- package.json - project dependencies file
-- .gitignore - list of ignored files for Git
+### 2. Скрапер Yahoo Finance
 
-## DEPENDENCIES
+Скрипт для сбора данных о компаниях с сайта Yahoo Finance.
 
-- Playwright - for browser automation
-- ExcelJS - for Excel file operations
+#### Функциональность
 
-## LICENSE
+- Сбор данных о рыночной капитализации, мультипликаторах и других финансовых показателях
+- Обработка данных и сохранение в Excel-файл
+- Поддержка списка тикеров из файла tickers.txt
 
-ISC
+#### Использование
+
+```bash
+# Запуск скрапера Yahoo Finance
+npm run scrape-yahoo
+```
+
+Результаты будут сохранены в файл `valuation_data_YYYY-MM-DD.xlsx` в корневой директории проекта.
+
+## Требования
+
+- Node.js (версия 14 или выше)
+- TypeScript
+- Для фильтра дивидендных компаний: файл `U.S.DividendChampions-LIVE.xlsx` в корневой директории проекта
+- Для скрапера Yahoo Finance: файл `tickers.txt` со списком тикеров в корневой директории проекта
+
+## Установка
+
+```bash
+# Установка зависимостей
+npm install
+
+# Установка Playwright (для скрапера Yahoo Finance)
+npx playwright install chromium
+```
+
+## Настройка параметров
+
+### Фильтр дивидендных компаний
+
+Вы можете изменить параметры фильтрации, отредактировав следующие константы в файле `dividend-filter.ts`:
+
+```typescript
+const MIN_YEARS = 15 // Минимальное количество лет выплаты дивидендов
+const MIN_YIELD = 2.5 // Минимальная дивидендная доходность (%)
+const MIN_PAYOUTS_PER_YEAR = 4 // Минимальное количество выплат в год
+const MIN_DGR_1Y = 2 // Минимальный рост дивидендов за 1 год (%)
+const MAX_PAYOUT_RATIO = 70 // Максимальный коэффициент выплат (%)
+const MIN_MARKET_CAP = 2e9 // Минимальная рыночная капитализация (2 млрд)
+```
+
+### Скрапер Yahoo Finance
+
+Вы можете настроить селекторы и таймауты в файле `constants.ts`.

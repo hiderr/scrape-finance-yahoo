@@ -1,21 +1,51 @@
 {
-  "name": "valuation-scraper",
+  "name": "investment-scripts",
   "version": "1.0.0",
-  "description": "Scraper for valuation data from Yahoo Finance",
-  "main": "dist/scraper.js",
+  "description": "Скрипты для анализа инвестиционных данных",
   "scripts": {
-    "start": "ts-node scraper.ts",
     "build": "tsc",
-    "dev": "ts-node-dev --respawn scraper.ts"
+    "filter-dividends": "ts-node dividend-filter.ts",
+    "scrape-yahoo": "ts-node yahoo-finance.service.ts",
+    "start": "echo 'Пожалуйста, используйте один из следующих скриптов: npm run filter-dividends или npm run scrape-yahoo'",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "prepare": "husky install"
   },
+  "keywords": [
+    "dividends",
+    "stocks",
+    "filter",
+    "excel",
+    "yahoo-finance"
+  ],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "exceljs": "^4.4.0",
-    "playwright": "^1.49.1"
+    "date-fns": "^4.1.0",
+    "exceljs": "^4.3.0",
+    "playwright": "^1.35.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^18.15.11",
+    "@typescript-eslint/eslint-plugin": "^6.7.0",
+    "@typescript-eslint/parser": "^6.7.0",
+    "eslint": "^8.49.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^14.0.1",
+    "prettier": "^3.0.3",
     "ts-node": "^10.9.1",
-    "ts-node-dev": "^2.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.4"
+  },
+  "lint-staged": {
+    "*.ts": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   }
 }
