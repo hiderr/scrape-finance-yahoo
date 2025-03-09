@@ -3,6 +3,7 @@ import ExcelJS from 'exceljs'
 import { subYears, isBefore } from 'date-fns'
 import { DividendCompany } from './types'
 import { FilterCriteria, ExcelFile } from './constants'
+import axios from 'axios'
 
 export class DividendFilter {
   private readonly requiredHeaders = [
@@ -22,8 +23,38 @@ export class DividendFilter {
     'EPS 1Y'
   ]
 
+  private async downloadGoogleSheet(): Promise<void> {
+    try {
+      console.log('Скачивание файла из Google Sheets...')
+
+      // Извлекаем ID файла из URL
+      const fileId = '1D4H2OoHOFVPmCoyKBVCjxIl0Bt3RLYSz'
+
+      // Формируем URL для скачивания
+      const downloadUrl = `https://docs.google.com/spreadsheets/d/${fileId}/export?format=xlsx`
+
+      // Скачиваем файл
+      const response = await axios({
+        url: downloadUrl,
+        method: 'GET',
+        responseType: 'arraybuffer'
+      })
+
+      // Сохраняем файл
+      fs.writeFileSync(ExcelFile.SOURCE, response.data)
+
+      console.log('Файл успешно скачан')
+    } catch (error) {
+      console.error('Ошибка при скачивании файла:', error)
+      throw error
+    }
+  }
+
   async run(): Promise<void> {
     try {
+      // Скачиваем актуальный файл
+      await this.downloadGoogleSheet()
+
       const companies = await this.readCompanies()
       const filteredCompanies = this.filterCompanies(companies)
       // console.log('filteredCompanies', filteredCompanies)

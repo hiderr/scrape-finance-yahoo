@@ -369,6 +369,13 @@ export class YahooFinanceService {
     const setupWorksheet = (worksheet: ExcelJS.Worksheet): void => {
       worksheet.columns = [
         { header: 'Symbol', key: 'symbol', width: 10 },
+        // Данные из U.S.DividendChampions-LIVE.xlsx
+        { header: 'Company', key: 'Company', width: 30 },
+        { header: 'Sector', key: 'Sector', width: 20 },
+        { header: 'Industry', key: 'Industry', width: 25 },
+        { header: 'No Years', key: 'No Years', width: 10 },
+        { header: 'Div Growth', key: 'DGR 5Y', width: 15 },
+        { header: 'Div Freq', key: 'Div Freq', width: 10 },
         // Statistics
         { header: 'Price', key: 'price', width: 10 },
         { header: 'Market Cap', key: 'marketCap', width: 15 },
@@ -396,14 +403,7 @@ export class YahooFinanceService {
         { header: 'Diluted EPS', key: 'dilutedEPS', width: 15 },
         { header: 'Total Cash', key: 'totalCash', width: 15 },
         { header: 'Debt/Equity', key: 'debtToEquity', width: 15 },
-        { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 },
-        // Дополнительные колонки из U.S.DividendChampions-LIVE.xlsx
-        { header: 'Company', key: 'Company', width: 30 },
-        { header: 'Sector', key: 'Sector', width: 20 },
-        { header: 'Industry', key: 'Industry', width: 25 },
-        { header: 'No Years', key: 'No Years', width: 10 },
-        { header: 'Div Growth', key: 'DGR 5Y', width: 15 },
-        { header: 'Div Freq', key: 'Div Freq', width: 10 }
+        { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 }
       ]
 
       worksheet.getRow(1).font = { bold: true }
@@ -470,7 +470,7 @@ export class YahooFinanceService {
         throw new Error('Файл tickers.txt пуст или не содержит валидных тикеров')
       }
 
-      const browser = await chromium.launch({ headless: false })
+      const browser = await chromium.launch({ headless: true })
       const page = await browser.newPage()
 
       try {
