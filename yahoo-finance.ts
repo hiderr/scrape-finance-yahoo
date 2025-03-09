@@ -3,7 +3,34 @@ import * as fs from 'fs/promises'
 import ExcelJS from 'exceljs'
 import { Statistics, Valuation, FinancialHighlights } from './types'
 
+interface ChampionData {
+  Company: string
+  Sector: string
+  Industry: string
+  'No Years': string
+  'DGR 5Y': string
+  'Div Freq': string
+  [key: string]: string // Для других возможных полей
+}
+
 export class YahooFinanceService {
+  private championData: Map<string, ChampionData>
+
+  constructor() {
+    this.championData = new Map()
+  }
+
+  private async initialize(): Promise<void> {
+    try {
+      console.log('Чтение данных из U.S.DividendChampions-LIVE.xlsx...')
+      this.championData = await this.getDividendChampionsData()
+      console.log('Данные из U.S.DividendChampions-LIVE.xlsx успешно загружены')
+    } catch (error) {
+      console.error('Ошибка при инициализации:', error)
+      throw error
+    }
+  }
+
   private parseNumber(value: string): number {
     if (!value) return 0
 
@@ -262,6 +289,63 @@ export class YahooFinanceService {
     }
   }
 
+  private async getDividendChampionsData(): Promise<Map<string, ChampionData>> {
+    try {
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.readFile('U.S.DividendChampions-LIVE.xlsx')
+
+      const worksheet = workbook.getWorksheet('All')
+      if (!worksheet) {
+        throw new Error('Лист "All" не найден в файле U.S.DividendChampions-LIVE.xlsx')
+      }
+
+      const championsData = new Map<string, ChampionData>()
+      const headers: { [key: string]: number } = {}
+
+      // Получаем заголовки из строки 3 (как в dividend-filter.ts)
+      const headerRow = worksheet.getRow(3)
+      headerRow.eachCell((cell, colNumber) => {
+        if (cell.value) {
+          headers[cell.value.toString()] = colNumber
+        }
+      })
+
+      console.log('Найденные заголовки:', Object.keys(headers))
+
+      // Проверяем наличие необходимых колонок
+      if (!headers['Symbol']) {
+        throw new Error(
+          'Колонка "Symbol" не найдена в файле. Доступные заголовки: ' +
+            Object.keys(headers).join(', ')
+        )
+      }
+
+      // Читаем данные начиная со строки 4 (как в dividend-filter.ts)
+      for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
+        const row = worksheet.getRow(rowNumber)
+        const symbol = row.getCell(headers['Symbol']).value?.toString()
+
+        if (!symbol) continue
+
+        const rowData: ChampionData = {
+          Company: row.getCell(headers['Company'])?.value?.toString() || '',
+          Sector: row.getCell(headers['Sector'])?.value?.toString() || '',
+          Industry: row.getCell(headers['Industry'])?.value?.toString() || '',
+          'No Years': row.getCell(headers['No Years'])?.value?.toString() || '',
+          'DGR 5Y': row.getCell(headers['DGR 5Y'])?.value?.toString() || '',
+          'Div Freq': row.getCell(headers['Payouts/ Year'])?.value?.toString() || ''
+        }
+
+        championsData.set(symbol, rowData)
+      }
+
+      return championsData
+    } catch (error) {
+      console.error('Ошибка при чтении U.S.DividendChampions-LIVE.xlsx:', error)
+      throw error
+    }
+  }
+
   private async saveToExcel(
     allData: Array<{
       symbol: string
@@ -278,7 +362,10 @@ export class YahooFinanceService {
   ): Promise<string> {
     const workbook = new ExcelJS.Workbook()
 
-    // Функция для настройки колонок листа
+    // Используем уже загруженные данные чемпионов
+    const championsData = this.championData
+
+    // Функция для настройки базовых колонок листа
     const setupWorksheet = (worksheet: ExcelJS.Worksheet): void => {
       worksheet.columns = [
         { header: 'Symbol', key: 'symbol', width: 10 },
@@ -309,7 +396,14 @@ export class YahooFinanceService {
         { header: 'Diluted EPS', key: 'dilutedEPS', width: 15 },
         { header: 'Total Cash', key: 'totalCash', width: 15 },
         { header: 'Debt/Equity', key: 'debtToEquity', width: 15 },
-        { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 }
+        { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 },
+        // Дополнительные колонки из U.S.DividendChampions-LIVE.xlsx
+        { header: 'Company', key: 'Company', width: 30 },
+        { header: 'Sector', key: 'Sector', width: 20 },
+        { header: 'Industry', key: 'Industry', width: 25 },
+        { header: 'No Years', key: 'No Years', width: 10 },
+        { header: 'Div Growth', key: 'DGR 5Y', width: 15 },
+        { header: 'Div Freq', key: 'Div Freq', width: 10 }
       ]
 
       worksheet.getRow(1).font = { bold: true }
@@ -321,11 +415,19 @@ export class YahooFinanceService {
     setupWorksheet(allCompaniesSheet)
 
     for (const item of allData) {
+      const championData = championsData.get(item.symbol)
       allCompaniesSheet.addRow({
         symbol: item.symbol,
         ...item.statistics,
         ...item.valuation,
-        ...item.financials
+        ...item.financials,
+        // Добавляем данные из файла чемпионов
+        Company: championData?.Company || '',
+        Sector: championData?.Sector || '',
+        Industry: championData?.Industry || '',
+        'No Years': championData?.['No Years'] || '',
+        'DGR 5Y': championData?.['DGR 5Y'] || '',
+        'Div Freq': championData?.['Div Freq'] || ''
       })
     }
 
@@ -334,11 +436,19 @@ export class YahooFinanceService {
     setupWorksheet(filteredSheet)
 
     for (const item of filteredData) {
+      const championData = championsData.get(item.symbol)
       filteredSheet.addRow({
         symbol: item.symbol,
         ...item.statistics,
         ...item.valuation,
-        ...item.financials
+        ...item.financials,
+        // Добавляем данные из файла чемпионов
+        Company: championData?.Company || '',
+        Sector: championData?.Sector || '',
+        Industry: championData?.Industry || '',
+        'No Years': championData?.['No Years'] || '',
+        'DGR 5Y': championData?.['DGR 5Y'] || '',
+        'Div Freq': championData?.['Div Freq'] || ''
       })
     }
 
@@ -349,6 +459,9 @@ export class YahooFinanceService {
 
   async run(): Promise<void> {
     try {
+      // Инициализируем данные в начале
+      await this.initialize()
+
       console.log('Запуск сбора данных с Yahoo Finance...')
       const content = await fs.readFile('tickers.txt', 'utf-8')
       const tickers = content.split('\n').filter(Boolean)
