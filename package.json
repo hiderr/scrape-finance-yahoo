@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc",
     "filter-dividends": "ts-node dividend-filter.ts",
-    "scrape-yahoo": "ts-node yahoo-finance.service.ts",
+    "scrape-yahoo": "ts-node yahoo-finance.ts",
     "start": "echo 'Пожалуйста, используйте один из следующих скриптов: npm run filter-dividends или npm run scrape-yahoo'",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",

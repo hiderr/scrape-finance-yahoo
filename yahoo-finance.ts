@@ -10,6 +10,7 @@ interface ChampionData {
   'No Years': string
   'DGR 5Y': string
   'Div Freq': string
+  'Div Yield': string
   [key: string]: string // Для других возможных полей
 }
 
@@ -50,38 +51,6 @@ export class YahooFinanceService {
     }
 
     return number
-  }
-
-  private shouldIncludeCompany(data: { statistics: Statistics }): boolean {
-    try {
-      // Проверяем капитализацию
-      const marketCap = this.parseNumber(data.statistics.marketCap)
-      if (marketCap < 2000000000) {
-        // < 2 млрд
-        console.log(`Пропускаем компанию с малой капитализацией: ${marketCap}`)
-        return false
-      }
-
-      // Рассчитываем P/E
-      const price = this.parseNumber(data.statistics.price)
-      const eps = this.parseNumber(data.statistics.eps)
-
-      if (eps <= 0) {
-        console.log('Пропускаем компанию с отрицательным или нулевым EPS')
-        return false
-      }
-
-      const pe = price / eps
-      if (pe > 20) {
-        console.log(`Пропускаем компанию с высоким P/E: ${pe.toFixed(2)}`)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error('Ошибка при проверке компании:', error)
-      return false
-    }
   }
 
   private async getStatistics(page: Page): Promise<Statistics> {
@@ -239,6 +208,95 @@ export class YahooFinanceService {
     }
   }
 
+  private async getDividendChampionsData(): Promise<Map<string, ChampionData>> {
+    try {
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.readFile('U.S.DividendChampions-LIVE.xlsx')
+
+      const worksheet = workbook.getWorksheet('All')
+      if (!worksheet) {
+        throw new Error('Лист "All" не найден в файле U.S.DividendChampions-LIVE.xlsx')
+      }
+
+      const championsData = new Map<string, ChampionData>()
+      const headers: { [key: string]: number } = {}
+
+      // Получаем заголовки из строки 3 (как в dividend-filter.ts)
+      const headerRow = worksheet.getRow(3)
+      headerRow.eachCell((cell, colNumber) => {
+        if (cell.value) {
+          headers[cell.value.toString()] = colNumber
+        }
+      })
+
+      console.log('Найденные заголовки:', Object.keys(headers))
+
+      // Проверяем наличие необходимых колонок
+      if (!headers['Symbol']) {
+        throw new Error(
+          'Колонка "Symbol" не найдена в файле. Доступные заголовки: ' +
+            Object.keys(headers).join(', ')
+        )
+      }
+
+      // Читаем данные начиная со строки 4 (как в dividend-filter.ts)
+      for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
+        const row = worksheet.getRow(rowNumber)
+        const symbol = row.getCell(headers['Symbol']).value?.toString()
+
+        if (!symbol) continue
+
+        const rowData: ChampionData = {
+          Company: row.getCell(headers['Company'])?.value?.toString() || '',
+          Sector: row.getCell(headers['Sector'])?.value?.toString() || '',
+          Industry: row.getCell(headers['Industry'])?.value?.toString() || '',
+          'No Years': row.getCell(headers['No Years'])?.value?.toString() || '',
+          'DGR 5Y': row.getCell(headers['DGR 5Y'])?.value?.toString() || '',
+          'Div Freq': row.getCell(headers['Payouts/ Year'])?.value?.toString() || '',
+          'Div Yield': row.getCell(headers['Div Yield'])?.value?.toString() || ''
+        }
+
+        championsData.set(symbol, rowData)
+      }
+
+      return championsData
+    } catch (error) {
+      console.error('Ошибка при чтении U.S.DividendChampions-LIVE.xlsx:', error)
+      throw error
+    }
+  }
+
+  private async shouldIncludeCompany(data: { statistics: Statistics }): Promise<boolean> {
+    try {
+      // Проверяем капитализацию
+      const marketCap = this.parseNumber(data.statistics.marketCap)
+      if (marketCap < 2000000000) {
+        console.log(`Пропускаем компанию с малой капитализацией: ${marketCap}`)
+        return false
+      }
+
+      // Рассчитываем P/E
+      const price = this.parseNumber(data.statistics.price)
+      const eps = this.parseNumber(data.statistics.eps)
+
+      if (eps <= 0) {
+        console.log('Пропускаем компанию с отрицательным или нулевым EPS')
+        return false
+      }
+
+      const pe = price / eps
+      if (pe > 20) {
+        console.log(`Пропускаем компанию с высоким P/E: ${pe.toFixed(2)}`)
+        return false
+      }
+
+      return true
+    } catch (error) {
+      console.error('Ошибка при проверке компании:', error)
+      return false
+    }
+  }
+
   private async getCompanyData(
     page: Page,
     symbol: string
@@ -289,63 +347,6 @@ export class YahooFinanceService {
     }
   }
 
-  private async getDividendChampionsData(): Promise<Map<string, ChampionData>> {
-    try {
-      const workbook = new ExcelJS.Workbook()
-      await workbook.xlsx.readFile('U.S.DividendChampions-LIVE.xlsx')
-
-      const worksheet = workbook.getWorksheet('All')
-      if (!worksheet) {
-        throw new Error('Лист "All" не найден в файле U.S.DividendChampions-LIVE.xlsx')
-      }
-
-      const championsData = new Map<string, ChampionData>()
-      const headers: { [key: string]: number } = {}
-
-      // Получаем заголовки из строки 3 (как в dividend-filter.ts)
-      const headerRow = worksheet.getRow(3)
-      headerRow.eachCell((cell, colNumber) => {
-        if (cell.value) {
-          headers[cell.value.toString()] = colNumber
-        }
-      })
-
-      console.log('Найденные заголовки:', Object.keys(headers))
-
-      // Проверяем наличие необходимых колонок
-      if (!headers['Symbol']) {
-        throw new Error(
-          'Колонка "Symbol" не найдена в файле. Доступные заголовки: ' +
-            Object.keys(headers).join(', ')
-        )
-      }
-
-      // Читаем данные начиная со строки 4 (как в dividend-filter.ts)
-      for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
-        const row = worksheet.getRow(rowNumber)
-        const symbol = row.getCell(headers['Symbol']).value?.toString()
-
-        if (!symbol) continue
-
-        const rowData: ChampionData = {
-          Company: row.getCell(headers['Company'])?.value?.toString() || '',
-          Sector: row.getCell(headers['Sector'])?.value?.toString() || '',
-          Industry: row.getCell(headers['Industry'])?.value?.toString() || '',
-          'No Years': row.getCell(headers['No Years'])?.value?.toString() || '',
-          'DGR 5Y': row.getCell(headers['DGR 5Y'])?.value?.toString() || '',
-          'Div Freq': row.getCell(headers['Payouts/ Year'])?.value?.toString() || ''
-        }
-
-        championsData.set(symbol, rowData)
-      }
-
-      return championsData
-    } catch (error) {
-      console.error('Ошибка при чтении U.S.DividendChampions-LIVE.xlsx:', error)
-      throw error
-    }
-  }
-
   private async saveToExcel(
     allData: Array<{
       symbol: string
@@ -376,11 +377,13 @@ export class YahooFinanceService {
         { header: 'No Years', key: 'No Years', width: 10 },
         { header: 'Div Growth', key: 'DGR 5Y', width: 15 },
         { header: 'Div Freq', key: 'Div Freq', width: 10 },
+        { header: 'Div Yield', key: 'Div Yield', width: 10 },
         // Statistics
         { header: 'Price', key: 'price', width: 10 },
         { header: 'Market Cap', key: 'marketCap', width: 15 },
         { header: 'Beta', key: 'beta', width: 10 },
         { header: 'PE Ratio (TTM)', key: 'peRatio', width: 15 },
+        { header: 'P/E actual', key: 'peActual', width: 15 },
         { header: 'EPS (TTM)', key: 'eps', width: 15 },
         { header: 'Forward Dividend & Yield', key: 'dividend', width: 20 },
         { header: 'Ex-Dividend Date', key: 'exDivDate', width: 15 },
@@ -416,9 +419,14 @@ export class YahooFinanceService {
 
     for (const item of allData) {
       const championData = championsData.get(item.symbol)
+      const price = this.parseNumber(item.statistics.price)
+      const eps = this.parseNumber(item.statistics.eps)
+      const peActual = eps > 0 ? (price / eps).toFixed(2) : ''
+
       allCompaniesSheet.addRow({
         symbol: item.symbol,
         ...item.statistics,
+        peActual,
         ...item.valuation,
         ...item.financials,
         // Добавляем данные из файла чемпионов
@@ -427,7 +435,8 @@ export class YahooFinanceService {
         Industry: championData?.Industry || '',
         'No Years': championData?.['No Years'] || '',
         'DGR 5Y': championData?.['DGR 5Y'] || '',
-        'Div Freq': championData?.['Div Freq'] || ''
+        'Div Freq': championData?.['Div Freq'] || '',
+        'Div Yield': championData?.['Div Yield'] || ''
       })
     }
 
@@ -437,9 +446,14 @@ export class YahooFinanceService {
 
     for (const item of filteredData) {
       const championData = championsData.get(item.symbol)
+      const price = this.parseNumber(item.statistics.price)
+      const eps = this.parseNumber(item.statistics.eps)
+      const peActual = eps > 0 ? (price / eps).toFixed(2) : ''
+
       filteredSheet.addRow({
         symbol: item.symbol,
         ...item.statistics,
+        peActual,
         ...item.valuation,
         ...item.financials,
         // Добавляем данные из файла чемпионов
@@ -448,7 +462,8 @@ export class YahooFinanceService {
         Industry: championData?.Industry || '',
         'No Years': championData?.['No Years'] || '',
         'DGR 5Y': championData?.['DGR 5Y'] || '',
-        'Div Freq': championData?.['Div Freq'] || ''
+        'Div Freq': championData?.['Div Freq'] || '',
+        'Div Yield': championData?.['Div Yield'] || ''
       })
     }
 
@@ -495,12 +510,10 @@ export class YahooFinanceService {
             console.log(`Обработка тикера ${ticker}...`)
             const data = await this.getCompanyData(page, ticker)
 
-            // Добавляем в общий список
             allData.push(data)
             console.log(`Данные для ${ticker} получены`)
 
-            // Проверяем для фильтрованного списка
-            if (this.shouldIncludeCompany(data)) {
+            if (await this.shouldIncludeCompany(data)) {
               filteredData.push(data)
               console.log(
                 `Данные для ${ticker} соответствуют критериям и добавлены в фильтрованный список`
