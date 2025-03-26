@@ -307,10 +307,10 @@ export class DividendFilter {
       width: Math.max(header.length, 15)
     }))
 
-    const fileName = `Filtered-Dividend-Champions-${new Date().toISOString().split('T')[0]}.xlsx`
+    const fileName = `Filtered-Dividend-Champions.xlsx`
     await outputWorkbook.xlsx.writeFile(fileName)
 
-    const tickers = companies.map(company => company.symbol.replace(/\./g, '')).join('\n')
+    const tickers = companies.map(company => company.symbol).join('\n')
     await fs.promises.writeFile('tickers.txt', tickers)
 
     console.log(`Результаты сохранены в файлы:`)

@@ -2,16 +2,16 @@ import { chromium, Page } from 'playwright'
 import * as fs from 'fs/promises'
 import ExcelJS from 'exceljs'
 import { Statistics, Valuation, FinancialHighlights } from './types'
+import { toYahooFormat } from './utils/tickers-map'
 
 interface ChampionData {
   Company: string
   Sector: string
-  Industry: string
   'No Years': string
-  'DGR 5Y': string
-  'Div Freq': string
+  'Payouts/ Year': string
   'Div Yield': string
-  [key: string]: string // Для других возможных полей
+  'Sector Average P/E': string
+  [key: string]: string | undefined // Для других возможных полей
 }
 
 export class YahooFinanceService {
@@ -23,9 +23,9 @@ export class YahooFinanceService {
 
   private async initialize(): Promise<void> {
     try {
-      console.log('Чтение данных из U.S.DividendChampions-LIVE.xlsx...')
+      console.log('Чтение данных из Filtered-Dividend-Champions.xlsx...')
       this.championData = await this.getDividendChampionsData()
-      console.log('Данные из U.S.DividendChampions-LIVE.xlsx успешно загружены')
+      console.log('Данные из Filtered-Dividend-Champions.xlsx успешно загружены')
     } catch (error) {
       console.error('Ошибка при инициализации:', error)
       throw error
@@ -211,18 +211,19 @@ export class YahooFinanceService {
   private async getDividendChampionsData(): Promise<Map<string, ChampionData>> {
     try {
       const workbook = new ExcelJS.Workbook()
-      await workbook.xlsx.readFile('U.S.DividendChampions-LIVE.xlsx')
+      await workbook.xlsx.readFile('Filtered-Dividend-Champions.xlsx')
 
-      const worksheet = workbook.getWorksheet('All')
+      const worksheet = workbook.getWorksheet('Filtered Champions')
       if (!worksheet) {
-        throw new Error('Лист "All" не найден в файле U.S.DividendChampions-LIVE.xlsx')
+        throw new Error(
+          'Лист "Filtered Champions" не найден в файле Filtered-Dividend-Champions.xlsx'
+        )
       }
 
       const championsData = new Map<string, ChampionData>()
       const headers: { [key: string]: number } = {}
 
-      // Получаем заголовки из строки 3 (как в dividend-filter.ts)
-      const headerRow = worksheet.getRow(3)
+      const headerRow = worksheet.getRow(1)
       headerRow.eachCell((cell, colNumber) => {
         if (cell.value) {
           headers[cell.value.toString()] = colNumber
@@ -239,8 +240,8 @@ export class YahooFinanceService {
         )
       }
 
-      // Читаем данные начиная со строки 4 (как в dividend-filter.ts)
-      for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
+      // Читаем данные начиная со строки 2
+      for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber++) {
         const row = worksheet.getRow(rowNumber)
         const symbol = row.getCell(headers['Symbol']).value?.toString()
 
@@ -249,10 +250,10 @@ export class YahooFinanceService {
         const rowData: ChampionData = {
           Company: row.getCell(headers['Company'])?.value?.toString() || '',
           Sector: row.getCell(headers['Sector'])?.value?.toString() || '',
-          Industry: row.getCell(headers['Industry'])?.value?.toString() || '',
+          'Sector Average P/E':
+            row.getCell(headers['Sector Average P/E'])?.value?.toString() || 'N/A',
           'No Years': row.getCell(headers['No Years'])?.value?.toString() || '',
-          'DGR 5Y': row.getCell(headers['DGR 5Y'])?.value?.toString() || '',
-          'Div Freq': row.getCell(headers['Payouts/ Year'])?.value?.toString() || '',
+          'Payouts/ Year': row.getCell(headers['Payouts/ Year'])?.value?.toString() || '',
           'Div Yield': row.getCell(headers['Div Yield'])?.value?.toString() || ''
         }
 
@@ -276,19 +277,21 @@ export class YahooFinanceService {
       }
 
       // Рассчитываем P/E
-      const price = this.parseNumber(data.statistics.price)
-      const eps = this.parseNumber(data.statistics.eps)
+      // const price = this.parseNumber(data.statistics.price)
+      // const eps = this.parseNumber(data.statistics.eps)
 
-      if (eps <= 0) {
-        console.log('Пропускаем компанию с отрицательным или нулевым EPS')
-        return false
-      }
+      // if (eps <= 0) {
+      //   console.log('Пропускаем компанию с отрицательным или нулевым EPS')
+      //   return false
+      // }
 
-      const pe = price / eps
-      if (pe > 20) {
-        console.log(`Пропускаем компанию с высоким P/E: ${pe.toFixed(2)}`)
-        return false
-      }
+      // const pe = price / eps
+
+      // Отключаем фильтрацию по высокому P/E
+      // if (pe > 20) {
+      //   console.log(`Пропускаем компанию с высоким P/E: ${pe.toFixed(2)}`)
+      //   return false
+      // }
 
       return true
     } catch (error) {
@@ -307,7 +310,9 @@ export class YahooFinanceService {
     financials: FinancialHighlights
   }> {
     try {
-      await page.goto(`https://finance.yahoo.com/quote/${symbol}`, {
+      const yahooSymbol = toYahooFormat(symbol)
+
+      await page.goto(`https://finance.yahoo.com/quote/${yahooSymbol}`, {
         waitUntil: 'domcontentloaded',
         timeout: 10000
       })
@@ -370,20 +375,19 @@ export class YahooFinanceService {
     const setupWorksheet = (worksheet: ExcelJS.Worksheet): void => {
       worksheet.columns = [
         { header: 'Symbol', key: 'symbol', width: 10 },
-        // Данные из U.S.DividendChampions-LIVE.xlsx
+        // Данные из Filtered-Dividend-Champions.xlsx
         { header: 'Company', key: 'Company', width: 30 },
         { header: 'Sector', key: 'Sector', width: 20 },
-        { header: 'Industry', key: 'Industry', width: 25 },
+        { header: 'Sector Average P/E', key: 'sectorPE', width: 15 },
+        { header: 'P/E actual', key: 'peActual', width: 15 },
+        { header: 'PE Ratio (TTM)', key: 'peRatio', width: 15 },
         { header: 'No Years', key: 'No Years', width: 10 },
-        { header: 'Div Growth', key: 'DGR 5Y', width: 15 },
-        { header: 'Div Freq', key: 'Div Freq', width: 10 },
+        { header: 'Payouts/ Year', key: 'Payouts/ Year', width: 10 },
         { header: 'Div Yield', key: 'Div Yield', width: 10 },
         // Statistics
         { header: 'Price', key: 'price', width: 10 },
         { header: 'Market Cap', key: 'marketCap', width: 15 },
         { header: 'Beta', key: 'beta', width: 10 },
-        { header: 'PE Ratio (TTM)', key: 'peRatio', width: 15 },
-        { header: 'P/E actual', key: 'peActual', width: 15 },
         { header: 'EPS (TTM)', key: 'eps', width: 15 },
         { header: 'Forward Dividend & Yield', key: 'dividend', width: 20 },
         { header: 'Ex-Dividend Date', key: 'exDivDate', width: 15 },
@@ -413,33 +417,6 @@ export class YahooFinanceService {
       worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' }
     }
 
-    // Создаем и настраиваем лист со всеми компаниями
-    const allCompaniesSheet = workbook.addWorksheet('All Companies')
-    setupWorksheet(allCompaniesSheet)
-
-    for (const item of allData) {
-      const championData = championsData.get(item.symbol)
-      const price = this.parseNumber(item.statistics.price)
-      const eps = this.parseNumber(item.statistics.eps)
-      const peActual = eps > 0 ? (price / eps).toFixed(2) : ''
-
-      allCompaniesSheet.addRow({
-        symbol: item.symbol,
-        ...item.statistics,
-        peActual,
-        ...item.valuation,
-        ...item.financials,
-        // Добавляем данные из файла чемпионов
-        Company: championData?.Company || '',
-        Sector: championData?.Sector || '',
-        Industry: championData?.Industry || '',
-        'No Years': championData?.['No Years'] || '',
-        'DGR 5Y': championData?.['DGR 5Y'] || '',
-        'Div Freq': championData?.['Div Freq'] || '',
-        'Div Yield': championData?.['Div Yield'] || ''
-      })
-    }
-
     // Создаем и настраиваем лист с отфильтрованными компаниями
     const filteredSheet = workbook.addWorksheet('Filtered Companies')
     setupWorksheet(filteredSheet)
@@ -449,8 +426,38 @@ export class YahooFinanceService {
       const price = this.parseNumber(item.statistics.price)
       const eps = this.parseNumber(item.statistics.eps)
       const peActual = eps > 0 ? (price / eps).toFixed(2) : ''
+      const sector = championData?.Sector || 'Unknown'
 
       filteredSheet.addRow({
+        symbol: item.symbol,
+        ...item.statistics,
+        peActual,
+        sectorPE: championData?.['Sector Average P/E'] || '',
+        ...item.valuation,
+        ...item.financials,
+        // Добавляем данные из файла чемпионов
+        Company: championData?.Company || '',
+        Sector: sector,
+        Industry: championData?.Industry || '',
+        'No Years': championData?.['No Years'] || '',
+        'DGR 5Y': championData?.['DGR 5Y'] || '',
+        'Payouts/ Year': championData?.['Payouts/ Year'] || '',
+        'Div Yield': championData?.['Div Yield'] || ''
+      })
+    }
+
+    // Создаем и настраиваем лист со всеми компаниями
+    const allCompaniesSheet = workbook.addWorksheet('All Companies')
+    setupWorksheet(allCompaniesSheet)
+
+    for (const item of allData) {
+      const championData = championsData.get(item.symbol)
+      const price = this.parseNumber(item.statistics.price)
+      const eps = this.parseNumber(item.statistics.eps)
+      const peActual = eps > 0 ? (price / eps).toFixed(2) : ''
+      const sector = championData?.Sector || 'Unknown'
+
+      allCompaniesSheet.addRow({
         symbol: item.symbol,
         ...item.statistics,
         peActual,
@@ -458,11 +465,10 @@ export class YahooFinanceService {
         ...item.financials,
         // Добавляем данные из файла чемпионов
         Company: championData?.Company || '',
-        Sector: championData?.Sector || '',
-        Industry: championData?.Industry || '',
+        Sector: sector,
+        sectorPE: championData?.['Sector Average P/E'] || '',
         'No Years': championData?.['No Years'] || '',
-        'DGR 5Y': championData?.['DGR 5Y'] || '',
-        'Div Freq': championData?.['Div Freq'] || '',
+        'Payouts/ Year': championData?.['Payouts/ Year'] || '',
         'Div Yield': championData?.['Div Yield'] || ''
       })
     }
@@ -479,7 +485,10 @@ export class YahooFinanceService {
 
       console.log('Запуск сбора данных с Yahoo Finance...')
       const content = await fs.readFile('tickers.txt', 'utf-8')
-      const tickers = content.split('\n').filter(Boolean)
+      const tickers = content
+        .split('\n')
+        .filter(Boolean)
+        .map(ticker => ticker.trim())
 
       if (!tickers.length) {
         throw new Error('Файл tickers.txt пуст или не содержит валидных тикеров')
