@@ -2,6 +2,7 @@ export interface DividendCompany {
   symbol: string
   company: string
   sector: string
+  sectorPE: number
   noYears: number
   price: number
   divYield: number
@@ -15,4 +16,10 @@ export interface DividendCompany {
   eps1Y: number
   marketCap?: number
   [key: string]: unknown
+}
+
+export interface SectorPEData {
+  sum: number
+  count: number
+  average: number
 }

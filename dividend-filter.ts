@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import ExcelJS from 'exceljs'
 import { subYears, isBefore } from 'date-fns'
-import { DividendCompany } from './types'
+import { DividendCompany, SectorPEData } from './types'
 import { FilterCriteria, ExcelFile } from './constants'
 import axios from 'axios'
 
@@ -10,6 +10,7 @@ export class DividendFilter {
     'Symbol',
     'Company',
     'Sector',
+    'P/E',
     'No Years',
     'Price',
     'Div Yield',
@@ -22,6 +23,8 @@ export class DividendFilter {
     'DGR 1Y',
     'EPS 1Y'
   ]
+
+  private sectorPEData: Map<string, SectorPEData> = new Map()
 
   private async downloadGoogleSheet(): Promise<void> {
     try {
@@ -94,6 +97,7 @@ export class DividendFilter {
     }
 
     const companies: DividendCompany[] = []
+    this.calculateSectorPEData(worksheet, headers)
 
     for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber)
@@ -103,10 +107,14 @@ export class DividendFilter {
         continue
       }
 
+      const sector = row.getCell(headers['Sector']).value?.toString() || 'Unknown'
+      const sectorPE = this.sectorPEData.get(sector)?.average || 0
+
       const company: DividendCompany = {
         symbol: symbolCell.value?.toString() || '',
         company: row.getCell(headers['Company']).value?.toString() || '',
-        sector: row.getCell(headers['Sector']).value?.toString() || '',
+        sector: sector,
+        sectorPE: sectorPE,
         noYears: Number(row.getCell(headers['No Years']).value) || 0,
         price: Number(row.getCell(headers['Price']).value) || 0,
         divYield: Number(row.getCell(headers['Div Yield']).value) || 0,
@@ -129,6 +137,58 @@ export class DividendFilter {
     }
 
     return companies
+  }
+
+  /**
+   * Рассчитывает средний P/E по каждому сектору
+   */
+  private calculateSectorPEData(
+    worksheet: ExcelJS.Worksheet,
+    headers: { [key: string]: number }
+  ): void {
+    const sectorPEData = new Map<string, SectorPEData>()
+
+    for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
+      const row = worksheet.getRow(rowNumber)
+      const symbolCell = row.getCell(headers['Symbol'])
+
+      if (!symbolCell.value) {
+        continue
+      }
+
+      const sector = row.getCell(headers['Sector']).value?.toString() || 'Unknown'
+      const peCell = row.getCell(headers['P/E']).value
+      let pe = 0
+
+      if (typeof peCell === 'number') {
+        pe = peCell
+      } else if (typeof peCell === 'string') {
+        pe = parseFloat(peCell) || 0
+      }
+
+      // Учитываем только положительные P/E для расчета среднего
+      if (pe > 0) {
+        if (!sectorPEData.has(sector)) {
+          sectorPEData.set(sector, { sum: 0, count: 0, average: 0 })
+        }
+
+        const data = sectorPEData.get(sector)!
+        data.sum += pe
+        data.count += 1
+      }
+    }
+
+    // Вычисляем средние значения
+    for (const [sector, data] of sectorPEData.entries()) {
+      if (data.count > 0) {
+        data.average = data.sum / data.count
+        console.log(
+          `Средний P/E для сектора ${sector}: ${data.average.toFixed(2)} (на основе ${data.count} компаний)`
+        )
+      }
+    }
+
+    this.sectorPEData = sectorPEData
   }
 
   private filterCompanies(companies: DividendCompany[]): DividendCompany[] {
@@ -206,11 +266,37 @@ export class DividendFilter {
     const outputWorkbook = new ExcelJS.Workbook()
     const outputWorksheet = outputWorkbook.addWorksheet('Filtered Champions')
 
-    const outputHeaders = this.requiredHeaders
+    // Определяем заголовки для выходного файла
+    const outputHeaders = [
+      'Symbol',
+      'Company',
+      'Sector',
+      'Sector Average P/E',
+      'P/E',
+      'No Years',
+      'Price',
+      'Div Yield',
+      'Current Div',
+      'Payouts/ Year',
+      'Annualized',
+      'Previous Div',
+      'Ex-Date',
+      'Pay-Date',
+      'DGR 1Y',
+      'EPS 1Y'
+    ]
+
     outputWorksheet.addRow(outputHeaders)
 
     companies.forEach(company => {
-      const rowData = outputHeaders.map(header => company[header] || '')
+      const rowData = outputHeaders.map(header => {
+        if (header === 'Sector Average P/E') {
+          return company.sectorPE?.toFixed(2) || ''
+        }
+
+        return company[header] || ''
+      })
+
       outputWorksheet.addRow(rowData)
     })
 
