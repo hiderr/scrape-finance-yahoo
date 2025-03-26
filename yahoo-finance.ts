@@ -5,7 +5,8 @@ import {
   Statistics,
   Valuation,
   FinancialHighlights,
-  OperatingIncome
+  OperatingIncome,
+  YahooCompanyData
 } from './types/yahoo.interface'
 import { ChampionData } from './types/champion-data.interface'
 import { toYahooFormat } from './utils/tickers-map'
@@ -296,16 +297,59 @@ export class YahooFinanceService {
     }
   }
 
-  private async getCompanyData(
-    page: Page,
-    symbol: string
-  ): Promise<{
-    symbol: string
-    statistics: Statistics
-    valuation: Valuation
-    financials: FinancialHighlights
-    operatingIncome?: OperatingIncome
-  }> {
+  private async getOperatingIncome(page: Page): Promise<OperatingIncome | undefined> {
+    try {
+      const financialsTable = page.locator('.table')
+      await financialsTable.waitFor({ timeout: 10000 })
+
+      const operatingIncomeTitles = [
+        'Operating Income',
+        'Interest Income after Provision for Loan Loss',
+        'Total Operating Income as Reported'
+      ]
+
+      let operatingIncomeValues: string[] = []
+
+      for (const title of operatingIncomeTitles) {
+        const rowLocator = page.locator(`.rowTitle[title="${title}"]`)
+        const isVisible = await rowLocator.isVisible().catch(() => false)
+
+        if (isVisible) {
+          const row = rowLocator.locator('..').locator('..')
+          const columns = row.locator('.column:not(.sticky)')
+          const count = await columns.count()
+          const values: string[] = []
+
+          for (let i = 0; i < count && i < 5; i++) {
+            const value = await columns.nth(i).textContent()
+            values.push(value?.trim() || '')
+          }
+
+          if (values.length > 0) {
+            operatingIncomeValues = values
+            break
+          }
+        }
+      }
+
+      if (operatingIncomeValues.length === 0) {
+        return undefined
+      }
+
+      return {
+        ttm: operatingIncomeValues[0] || '',
+        y2024: operatingIncomeValues[1] || '',
+        y2023: operatingIncomeValues[2] || '',
+        y2022: operatingIncomeValues[3] || '',
+        y2021: operatingIncomeValues[4] || ''
+      }
+    } catch (error) {
+      console.error('Ошибка при получении операционного дохода:', error)
+      return undefined
+    }
+  }
+
+  private async getCompanyData(page: Page, symbol: string): Promise<YahooCompanyData> {
     try {
       const yahooSymbol = toYahooFormat(symbol)
 
@@ -342,91 +386,18 @@ export class YahooFinanceService {
         this.getFinancials(page)
       ])
 
-      // Получаем операционный доход
-      let operatingIncome
-      try {
-        operatingIncome = await this.getOperatingIncome(page, yahooSymbol)
-        console.log(`Получены данные операционного дохода для ${symbol}`)
-      } catch (error) {
-        console.error(`Не удалось получить операционный доход для ${symbol}:`, error)
-        // Если не удалось получить операционный доход, продолжаем без него
-      }
-
-      return { symbol, statistics, valuation, financials, operatingIncome }
-    } catch (error) {
-      console.error(`Ошибка при получении данных для ${symbol}:`, error)
-      throw error
-    }
-  }
-
-  private async getOperatingIncome(
-    page: Page,
-    yahooSymbol: string
-  ): Promise<OperatingIncome | undefined> {
-    try {
-      // Переходим на страницу с финансовыми данными
+      // Переходим на страницу с финансовыми данными и получаем операционный доход
       await page.goto(`https://finance.yahoo.com/quote/${yahooSymbol}/financials`, {
         waitUntil: 'domcontentloaded',
         timeout: 15000
       })
 
-      // Ожидаем загрузку таблицы
-      await page.waitForSelector('.table', { timeout: 10000 })
+      const operatingIncome = await this.getOperatingIncome(page)
 
-      // Ищем строку с операционным доходом
-      const operatingIncomeTitles = [
-        'Operating Income',
-        'Interest Income after Provision for Loan Loss', // Альтернативный показатель для финансовых компаний
-        'Total Operating Income as Reported'
-      ]
-
-      let operatingIncomeValues: string[] = []
-
-      // Пытаемся найти любой из возможных заголовков
-      for (const title of operatingIncomeTitles) {
-        const rowLocator = page.locator(`.rowTitle[title="${title}"]`)
-        const isVisible = await rowLocator.isVisible().catch(() => false)
-
-        if (isVisible) {
-          console.log(`Найден индикатор дохода: ${title} для ${yahooSymbol}`)
-
-          // Получаем значения для всех колонок в этой строке
-          const row = rowLocator.locator('..').locator('..')
-          // Выбираем все колонки, кроме первой (sticky)
-          const columns = row.locator('.column:not(.sticky)')
-
-          // Получаем все значения колонок
-          const count = await columns.count()
-          const values: string[] = []
-
-          for (let i = 0; i < count && i < 5; i++) {
-            const value = (await columns.nth(i).textContent()) || ''
-            values.push(value.trim())
-          }
-
-          if (values.length > 0) {
-            operatingIncomeValues = values
-            break
-          }
-        }
-      }
-
-      if (operatingIncomeValues.length === 0) {
-        console.log(`Не найдены данные операционного дохода для ${yahooSymbol}`)
-        return undefined
-      }
-
-      // Форматируем результат в соответствии с интерфейсом OperatingIncome
-      return {
-        ttm: operatingIncomeValues[0] || '',
-        y2024: operatingIncomeValues[1] || '',
-        y2023: operatingIncomeValues[2] || '',
-        y2022: operatingIncomeValues[3] || '',
-        y2021: operatingIncomeValues[4] || ''
-      }
+      return { symbol, statistics, valuation, financials, operatingIncome }
     } catch (error) {
-      console.error(`Ошибка при получении операционного дохода для ${yahooSymbol}:`, error)
-      return undefined
+      console.error(`Ошибка при получении данных для ${symbol}:`, error)
+      throw error
     }
   }
 
