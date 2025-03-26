@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import ExcelJS from 'exceljs'
 import { subYears, isBefore } from 'date-fns'
-import { DividendCompany, SectorPEData } from './types'
+import { DividendCompany, SectorPEData } from './types/dividend.interface'
 import { FilterCriteria, ExcelFile } from './constants'
 import axios from 'axios'
 

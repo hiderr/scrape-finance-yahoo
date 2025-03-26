@@ -1,18 +1,14 @@
 import { chromium, Page } from 'playwright'
 import * as fs from 'fs/promises'
-import ExcelJS from 'exceljs'
-import { Statistics, Valuation, FinancialHighlights } from './types'
+import * as ExcelJS from 'exceljs'
+import {
+  Statistics,
+  Valuation,
+  FinancialHighlights,
+  OperatingIncome
+} from './types/yahoo.interface'
+import { ChampionData } from './types/champion-data.interface'
 import { toYahooFormat } from './utils/tickers-map'
-
-interface ChampionData {
-  Company: string
-  Sector: string
-  'No Years': string
-  'Payouts/ Year': string
-  'Div Yield': string
-  'Sector Average P/E': string
-  [key: string]: string | undefined // Для других возможных полей
-}
 
 export class YahooFinanceService {
   private championData: Map<string, ChampionData>
@@ -308,6 +304,7 @@ export class YahooFinanceService {
     statistics: Statistics
     valuation: Valuation
     financials: FinancialHighlights
+    operatingIncome?: OperatingIncome
   }> {
     try {
       const yahooSymbol = toYahooFormat(symbol)
@@ -345,10 +342,91 @@ export class YahooFinanceService {
         this.getFinancials(page)
       ])
 
-      return { symbol, statistics, valuation, financials }
+      // Получаем операционный доход
+      let operatingIncome
+      try {
+        operatingIncome = await this.getOperatingIncome(page, yahooSymbol)
+        console.log(`Получены данные операционного дохода для ${symbol}`)
+      } catch (error) {
+        console.error(`Не удалось получить операционный доход для ${symbol}:`, error)
+        // Если не удалось получить операционный доход, продолжаем без него
+      }
+
+      return { symbol, statistics, valuation, financials, operatingIncome }
     } catch (error) {
       console.error(`Ошибка при получении данных для ${symbol}:`, error)
       throw error
+    }
+  }
+
+  private async getOperatingIncome(
+    page: Page,
+    yahooSymbol: string
+  ): Promise<OperatingIncome | undefined> {
+    try {
+      // Переходим на страницу с финансовыми данными
+      await page.goto(`https://finance.yahoo.com/quote/${yahooSymbol}/financials`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 15000
+      })
+
+      // Ожидаем загрузку таблицы
+      await page.waitForSelector('.table', { timeout: 10000 })
+
+      // Ищем строку с операционным доходом
+      const operatingIncomeTitles = [
+        'Operating Income',
+        'Interest Income after Provision for Loan Loss', // Альтернативный показатель для финансовых компаний
+        'Total Operating Income as Reported'
+      ]
+
+      let operatingIncomeValues: string[] = []
+
+      // Пытаемся найти любой из возможных заголовков
+      for (const title of operatingIncomeTitles) {
+        const rowLocator = page.locator(`.rowTitle[title="${title}"]`)
+        const isVisible = await rowLocator.isVisible().catch(() => false)
+
+        if (isVisible) {
+          console.log(`Найден индикатор дохода: ${title} для ${yahooSymbol}`)
+
+          // Получаем значения для всех колонок в этой строке
+          const row = rowLocator.locator('..').locator('..')
+          // Выбираем все колонки, кроме первой (sticky)
+          const columns = row.locator('.column:not(.sticky)')
+
+          // Получаем все значения колонок
+          const count = await columns.count()
+          const values: string[] = []
+
+          for (let i = 0; i < count && i < 5; i++) {
+            const value = (await columns.nth(i).textContent()) || ''
+            values.push(value.trim())
+          }
+
+          if (values.length > 0) {
+            operatingIncomeValues = values
+            break
+          }
+        }
+      }
+
+      if (operatingIncomeValues.length === 0) {
+        console.log(`Не найдены данные операционного дохода для ${yahooSymbol}`)
+        return undefined
+      }
+
+      // Форматируем результат в соответствии с интерфейсом OperatingIncome
+      return {
+        ttm: operatingIncomeValues[0] || '',
+        y2024: operatingIncomeValues[1] || '',
+        y2023: operatingIncomeValues[2] || '',
+        y2022: operatingIncomeValues[3] || '',
+        y2021: operatingIncomeValues[4] || ''
+      }
+    } catch (error) {
+      console.error(`Ошибка при получении операционного дохода для ${yahooSymbol}:`, error)
+      return undefined
     }
   }
 
@@ -358,12 +436,14 @@ export class YahooFinanceService {
       statistics: Statistics
       valuation: Valuation
       financials: FinancialHighlights
+      operatingIncome?: OperatingIncome
     }>,
     filteredData: Array<{
       symbol: string
       statistics: Statistics
       valuation: Valuation
       financials: FinancialHighlights
+      operatingIncome?: OperatingIncome
     }>
   ): Promise<string> {
     const workbook = new ExcelJS.Workbook()
@@ -410,7 +490,13 @@ export class YahooFinanceService {
         { header: 'Diluted EPS', key: 'dilutedEPS', width: 15 },
         { header: 'Total Cash', key: 'totalCash', width: 15 },
         { header: 'Debt/Equity', key: 'debtToEquity', width: 15 },
-        { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 }
+        { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 },
+        // Operating Income
+        { header: 'Operating Income (TTM)', key: 'operatingIncomeTTM', width: 20 },
+        { header: 'Operating Income (2024)', key: 'operatingIncome2024', width: 20 },
+        { header: 'Operating Income (2023)', key: 'operatingIncome2023', width: 20 },
+        { header: 'Operating Income (2022)', key: 'operatingIncome2022', width: 20 },
+        { header: 'Operating Income (2021)', key: 'operatingIncome2021', width: 20 }
       ]
 
       worksheet.getRow(1).font = { bold: true }
@@ -442,7 +528,13 @@ export class YahooFinanceService {
         'No Years': championData?.['No Years'] || '',
         'DGR 5Y': championData?.['DGR 5Y'] || '',
         'Payouts/ Year': championData?.['Payouts/ Year'] || '',
-        'Div Yield': championData?.['Div Yield'] || ''
+        'Div Yield': championData?.['Div Yield'] || '',
+        // Добавляем операционный доход
+        operatingIncomeTTM: item.operatingIncome?.ttm || 'N/A',
+        operatingIncome2024: item.operatingIncome?.y2024 || 'N/A',
+        operatingIncome2023: item.operatingIncome?.y2023 || 'N/A',
+        operatingIncome2022: item.operatingIncome?.y2022 || 'N/A',
+        operatingIncome2021: item.operatingIncome?.y2021 || 'N/A'
       })
     }
 
@@ -467,9 +559,16 @@ export class YahooFinanceService {
         Company: championData?.Company || '',
         Sector: sector,
         sectorPE: championData?.['Sector Average P/E'] || '',
+        Industry: championData?.Industry || '',
         'No Years': championData?.['No Years'] || '',
         'Payouts/ Year': championData?.['Payouts/ Year'] || '',
-        'Div Yield': championData?.['Div Yield'] || ''
+        'Div Yield': championData?.['Div Yield'] || '',
+        // Добавляем операционный доход
+        operatingIncomeTTM: item.operatingIncome?.ttm || 'N/A',
+        operatingIncome2024: item.operatingIncome?.y2024 || 'N/A',
+        operatingIncome2023: item.operatingIncome?.y2023 || 'N/A',
+        operatingIncome2022: item.operatingIncome?.y2022 || 'N/A',
+        operatingIncome2021: item.operatingIncome?.y2021 || 'N/A'
       })
     }
 
@@ -489,6 +588,9 @@ export class YahooFinanceService {
         .split('\n')
         .filter(Boolean)
         .map(ticker => ticker.trim())
+        .slice(0, 3) // Временно ограничиваем обработку только первыми 3 тикерами
+
+      console.log(`Будут обработаны только первые 3 тикера: ${tickers.join(', ')}`)
 
       if (!tickers.length) {
         throw new Error('Файл tickers.txt пуст или не содержит валидных тикеров')
