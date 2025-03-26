@@ -490,6 +490,11 @@ export class YahooFinanceService {
         ...item.statistics,
         peActual,
         sectorPE: championData?.['Sector Average P/E'] || '',
+        operatingIncomeTTM: item.operatingIncome?.ttm || 'N/A',
+        operatingIncome2024: item.operatingIncome?.y2024 || 'N/A',
+        operatingIncome2023: item.operatingIncome?.y2023 || 'N/A',
+        operatingIncome2022: item.operatingIncome?.y2022 || 'N/A',
+        operatingIncome2021: item.operatingIncome?.y2021 || 'N/A',
         ...item.valuation,
         ...item.financials,
         // Добавляем данные из файла чемпионов
@@ -499,13 +504,7 @@ export class YahooFinanceService {
         'No Years': championData?.['No Years'] || '',
         'DGR 5Y': championData?.['DGR 5Y'] || '',
         'Payouts/ Year': championData?.['Payouts/ Year'] || '',
-        'Div Yield': championData?.['Div Yield'] || '',
-        // Добавляем операционный доход
-        operatingIncomeTTM: item.operatingIncome?.ttm || 'N/A',
-        operatingIncome2024: item.operatingIncome?.y2024 || 'N/A',
-        operatingIncome2023: item.operatingIncome?.y2023 || 'N/A',
-        operatingIncome2022: item.operatingIncome?.y2022 || 'N/A',
-        operatingIncome2021: item.operatingIncome?.y2021 || 'N/A'
+        'Div Yield': championData?.['Div Yield'] || ''
       })
     }
 
