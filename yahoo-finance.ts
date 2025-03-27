@@ -558,9 +558,9 @@ export class YahooFinanceService {
         .split('\n')
         .filter(Boolean)
         .map(ticker => ticker.trim())
-        .slice(0, 3) // Временно ограничиваем обработку только первыми 3 тикерами
+      // .slice(0, 3) // Временно ограничиваем обработку только первыми 3 тикерами
 
-      console.log(`Будут обработаны только первые 3 тикера: ${tickers.join(', ')}`)
+      // console.log(`Будут обработаны только первые 3 тикера: ${tickers.join(', ')}`)
 
       if (!tickers.length) {
         throw new Error('Файл tickers.txt пуст или не содержит валидных тикеров')

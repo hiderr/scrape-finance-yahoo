@@ -1,6 +1,5 @@
 import * as fs from 'fs'
 import ExcelJS from 'exceljs'
-import { subYears, isBefore } from 'date-fns'
 import { DividendCompany, SectorPEData } from './types/dividend.interface'
 import { FilterCriteria, ExcelFile } from './constants'
 import axios from 'axios'
@@ -209,26 +208,8 @@ export class DividendFilter {
         return false
       }
 
-      if (!this.isExDateCurrent(company.exDate)) {
-        return false
-      }
-
       return true
     })
-  }
-
-  private isExDateCurrent(exDateStr: string): boolean {
-    if (!exDateStr) {
-      return false
-    }
-
-    const exDate = new Date(exDateStr)
-    if (isNaN(exDate.getTime())) {
-      return false
-    }
-
-    const oneYearAgo = subYears(new Date(), 1)
-    return !isBefore(exDate, oneYearAgo)
   }
 
   private extractMarketCap(value: unknown): number | undefined {
