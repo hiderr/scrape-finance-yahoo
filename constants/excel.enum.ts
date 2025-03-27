@@ -3,5 +3,7 @@ export enum ExcelFile {
   /** Исходный файл с данными о дивидендных чемпионах */
   SOURCE = 'U.S.DividendChampions-LIVE.xlsx',
   /** Название листа с данными */
-  SHEET = 'All'
+  SHEET = 'All',
+  /** Файл с отфильтрованными данными */
+  FILTERED = 'Filtered-Dividend-Champions.xlsx'
 }

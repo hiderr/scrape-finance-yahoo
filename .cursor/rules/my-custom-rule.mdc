@@ -1,7 +1,7 @@
 ---
-description: custom
-globs: 
-alwaysApply: true
+description: 
+globs: *
+alwaysApply: false
 ---
 # TypeScript & NestJS Best Practices
 
@@ -48,6 +48,7 @@ alwaysApply: true
 - Избегайте any
 - Используйте union types вместо enum где это возможно
 - Определяйте интерфейсы для объектов
+- Всегда отделяй типы от кода и выноси их в отдельные файлы в папку types
 
 ## Тестирование
 - Пишите модульные тесты для бизнес-логики
