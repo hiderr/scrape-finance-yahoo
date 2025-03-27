@@ -222,6 +222,7 @@ export class YahooFinanceAPI {
       { header: 'Sector', key: 'Sector', width: 20 },
       { header: 'Sector Average P/E', key: 'sectorPE', width: 15 },
       { header: 'P/E actual', key: 'peActual', width: 15 },
+      { header: 'Graham Price Diff (%)', key: 'grahamPriceDiff', width: 15 },
       { header: 'PE Ratio (TTM)', key: 'peRatio', width: 15 },
       { header: 'No Years', key: 'No Years', width: 10 },
       { header: 'Payouts/ Year', key: 'Payouts/ Year', width: 10 },
@@ -458,6 +459,16 @@ export class YahooFinanceAPI {
     const payoutRatio = this.calculatePayoutRatio(championData, company)
     const grahamNumber = this.calculateGrahamNumber(company)
 
+    // Расчет разницы между текущей ценой и числом Грэма (в процентах)
+    let grahamPriceDiff = 'N/A'
+    if (grahamNumber !== 'N/A' && price > 0) {
+      const grahamValue = parseFloat(grahamNumber)
+      // Положительное значение означает, что акция дороже, чем число Грэма (переоценена)
+      // Отрицательное значение означает, что акция дешевле, чем число Грэма (недооценена)
+      const diffPercent = ((price - grahamValue) / grahamValue) * 100
+      grahamPriceDiff = diffPercent.toFixed(2)
+    }
+
     // Форматируем рыночную капитализацию для человекочитаемого отображения
     const marketCap = this.parseNumber(company.statistics.marketCap)
     const formattedMarketCap = this.formatNumberForHuman(marketCap)
@@ -489,6 +500,7 @@ export class YahooFinanceAPI {
       peActual,
       payoutRatio,
       grahamNumber,
+      grahamPriceDiff,
       Company: championData?.Company || '',
       Sector: championData?.Sector || '',
       sectorPE: championData?.['Sector Average P/E'] || '',

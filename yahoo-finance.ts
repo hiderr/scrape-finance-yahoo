@@ -145,6 +145,7 @@ export class YahooFinanceService {
 
       if (eps <= 0) {
         filterReasons.push(`EPS равен нулю или отрицательный (${eps})`)
+        shouldInclude = false
       } else if (dividend <= 0) {
         filterReasons.push(`дивиденд равен нулю или отрицательный (${dividend})`)
       } else {
