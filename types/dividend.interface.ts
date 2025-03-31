@@ -1,8 +1,10 @@
 export interface DividendCompany {
+  [key: string]: string | number | boolean | undefined | null | Date
   symbol: string
   company: string
   sector: string
   sectorPE: number
+  yahooPE?: number
   noYears: number
   price: number
   divYield: number
@@ -15,7 +17,6 @@ export interface DividendCompany {
   dgr1Y: number
   eps1Y: number
   marketCap?: number
-  [key: string]: unknown
 }
 
 export interface SectorPEData {

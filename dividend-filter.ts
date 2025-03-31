@@ -3,6 +3,8 @@ import ExcelJS from 'exceljs'
 import { DividendCompany, SectorPEData } from './types/dividend.interface'
 import { FilterCriteria, ExcelFile } from './constants'
 import axios from 'axios'
+import { YahooFinanceAPI } from './yahoo-finance-api'
+import { YahooCompanyData } from './types/yahoo-api.types'
 
 export class DividendFilter {
   private readonly requiredHeaders = [
@@ -24,6 +26,12 @@ export class DividendFilter {
   ]
 
   private sectorPEData: Map<string, SectorPEData> = new Map()
+  private yahooFinanceAPI: YahooFinanceAPI
+  private yahooData: Map<string, YahooCompanyData> = new Map()
+
+  constructor() {
+    this.yahooFinanceAPI = new YahooFinanceAPI()
+  }
 
   private async downloadGoogleSheet(): Promise<void> {
     try {
@@ -57,14 +65,144 @@ export class DividendFilter {
       // Скачиваем актуальный файл
       await this.downloadGoogleSheet()
 
+      // Сначала читаем компании из файла
       const companies = await this.readCompanies()
+
+      // Получаем данные из Yahoo Finance для всех компаний
+      await this.getYahooFinanceData(companies)
+
+      // Расчет среднего P/E по секторам на основе данных Yahoo
+      this.calculateSectorPEDataFromYahoo(companies)
+
+      // Фильтруем компании с учетом данных из Yahoo Finance
       const filteredCompanies = this.filterCompanies(companies)
-      // console.log('filteredCompanies', filteredCompanies)
+
       await this.saveResults(filteredCompanies)
     } catch (error) {
       console.error('Ошибка:', (error as Error).message)
       process.exit(1)
     }
+  }
+
+  private async getYahooFinanceData(companies: DividendCompany[]): Promise<void> {
+    try {
+      console.log('Получение данных P/E из Yahoo Finance...')
+
+      // Получаем список тикеров
+      const tickers = companies.map(company => company.symbol)
+
+      // Разбиваем тикеры на более мелкие пакеты для предотвращения ошибок API
+      const chunkSize = 20 // Уменьшаем размер пакета для меньшей нагрузки на API
+      const delay = 1000 // Задержка между запросами в миллисекундах
+
+      // Функция для разбивки массива на части
+      const chunkArray = <T>(array: T[], size: number): T[][] => {
+        const chunkedArr: T[][] = []
+        for (let i = 0; i < array.length; i += size) {
+          chunkedArr.push(array.slice(i, i + size))
+        }
+        return chunkedArr
+      }
+
+      // Функция задержки
+      const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms))
+
+      // Разбиваем массив тикеров на пакеты
+      const tickerChunks = chunkArray(tickers, chunkSize)
+      console.log(
+        `Разбиваем ${tickers.length} тикеров на ${tickerChunks.length} пакетов по ${chunkSize} тикеров`
+      )
+
+      // Обрабатываем каждый пакет с задержкой
+      let processedCount = 0
+      for (let i = 0; i < tickerChunks.length; i++) {
+        console.log(`Обработка пакета ${i + 1} из ${tickerChunks.length}...`)
+
+        try {
+          // Обрабатываем пакет тикеров
+          const chunkData = await this.yahooFinanceAPI.getCompaniesData(tickerChunks[i])
+
+          // Сохраняем данные в Map для быстрого доступа и обновляем данные в массиве companies
+          chunkData.forEach(data => {
+            this.yahooData.set(data.symbol, data)
+
+            // Обновляем данные компании из Yahoo Finance
+            const companyIndex = companies.findIndex(c => c.symbol === data.symbol)
+            if (companyIndex !== -1) {
+              // Обновляем соответствующие поля из Yahoo Finance
+              const company = companies[companyIndex]
+              company.price = parseFloat(data.statistics.price) || company.price
+
+              // Обновляем P/E из Yahoo Finance если доступно
+              const peRatio = data.statistics.peRatio
+              if (peRatio !== 'N/A') {
+                company.yahooPE = parseFloat(peRatio)
+              }
+            }
+
+            processedCount++
+          })
+
+          // Ждем перед следующим запросом, чтобы не превысить лимит API
+          if (i < tickerChunks.length - 1) {
+            await sleep(delay)
+          }
+        } catch (error) {
+          console.error(`Ошибка при обработке пакета ${i + 1}:`, error)
+          // Увеличиваем задержку после ошибки для снижения нагрузки на API
+          await sleep(delay * 3)
+          // Продолжаем со следующим пакетом
+          continue
+        }
+      }
+
+      console.log(
+        `Получены данные из Yahoo Finance для ${processedCount} компаний из ${tickers.length}`
+      )
+    } catch (error) {
+      console.error('Ошибка при получении данных из Yahoo Finance:', error)
+      throw error
+    }
+  }
+
+  private calculateSectorPEDataFromYahoo(companies: DividendCompany[]): void {
+    const sectorPEData = new Map<string, SectorPEData>()
+
+    // Группируем компании по секторам
+    companies.forEach(company => {
+      const sector = company.sector
+
+      // Используем yahooPE вместо извлечения данных из yahooData
+      if (company.yahooPE && company.yahooPE > 0) {
+        if (!sectorPEData.has(sector)) {
+          sectorPEData.set(sector, { sum: 0, count: 0, average: 0 })
+        }
+
+        const data = sectorPEData.get(sector)!
+        data.sum += company.yahooPE
+        data.count += 1
+      }
+    })
+
+    // Вычисляем средние значения
+    for (const [sector, data] of sectorPEData.entries()) {
+      if (data.count > 0) {
+        data.average = data.sum / data.count
+        console.log(
+          `Средний P/E для сектора ${sector} (Yahoo): ${data.average.toFixed(2)} (на основе ${data.count} компаний)`
+        )
+      }
+    }
+
+    this.sectorPEData = sectorPEData
+
+    // Обновляем sectorPE в компаниях
+    companies.forEach(company => {
+      const sectorData = this.sectorPEData.get(company.sector)
+      if (sectorData) {
+        company.sectorPE = sectorData.average
+      }
+    })
   }
 
   private async readCompanies(): Promise<DividendCompany[]> {
@@ -96,7 +234,6 @@ export class DividendFilter {
     }
 
     const companies: DividendCompany[] = []
-    this.calculateSectorPEData(worksheet, headers)
 
     for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
       const row = worksheet.getRow(rowNumber)
@@ -107,13 +244,13 @@ export class DividendFilter {
       }
 
       const sector = row.getCell(headers['Sector']).value?.toString() || 'Unknown'
-      const sectorPE = this.sectorPEData.get(sector)?.average || 0
 
       const company: DividendCompany = {
         symbol: symbolCell.value?.toString() || '',
         company: row.getCell(headers['Company']).value?.toString() || '',
         sector: sector,
-        sectorPE: sectorPE,
+        sectorPE: 0, // Будет заполнено позже из Yahoo Finance
+        yahooPE: undefined, // Будет заполнено из Yahoo Finance
         noYears: Number(row.getCell(headers['No Years']).value) || 0,
         price: Number(row.getCell(headers['Price']).value) || 0,
         divYield: Number(row.getCell(headers['Div Yield']).value) || 0,
@@ -129,65 +266,26 @@ export class DividendFilter {
 
       Object.keys(headers).forEach(header => {
         const cellValue = row.getCell(headers[header]).value
-        company[header] = cellValue
+        // Преобразуем различные типы в строку, число или булево значение
+        if (cellValue !== null && cellValue !== undefined) {
+          if (typeof cellValue === 'object') {
+            // Для даты и других объектов
+            if (cellValue instanceof Date) {
+              company[header] = cellValue
+            } else {
+              // Для других объектов (например, ошибок) преобразуем в строку
+              company[header] = cellValue.toString()
+            }
+          } else {
+            company[header] = cellValue
+          }
+        }
       })
 
       companies.push(company)
     }
 
     return companies
-  }
-
-  /**
-   * Рассчитывает средний P/E по каждому сектору
-   */
-  private calculateSectorPEData(
-    worksheet: ExcelJS.Worksheet,
-    headers: { [key: string]: number }
-  ): void {
-    const sectorPEData = new Map<string, SectorPEData>()
-
-    for (let rowNumber = 4; rowNumber <= worksheet.rowCount; rowNumber++) {
-      const row = worksheet.getRow(rowNumber)
-      const symbolCell = row.getCell(headers['Symbol'])
-
-      if (!symbolCell.value) {
-        continue
-      }
-
-      const sector = row.getCell(headers['Sector']).value?.toString() || 'Unknown'
-      const peCell = row.getCell(headers['P/E']).value
-      let pe = 0
-
-      if (typeof peCell === 'number') {
-        pe = peCell
-      } else if (typeof peCell === 'string') {
-        pe = parseFloat(peCell) || 0
-      }
-
-      // Учитываем только положительные P/E для расчета среднего
-      if (pe > 0) {
-        if (!sectorPEData.has(sector)) {
-          sectorPEData.set(sector, { sum: 0, count: 0, average: 0 })
-        }
-
-        const data = sectorPEData.get(sector)!
-        data.sum += pe
-        data.count += 1
-      }
-    }
-
-    // Вычисляем средние значения
-    for (const [sector, data] of sectorPEData.entries()) {
-      if (data.count > 0) {
-        data.average = data.sum / data.count
-        console.log(
-          `Средний P/E для сектора ${sector}: ${data.average.toFixed(2)} (на основе ${data.count} компаний)`
-        )
-      }
-    }
-
-    this.sectorPEData = sectorPEData
   }
 
   private filterCompanies(companies: DividendCompany[]): DividendCompany[] {

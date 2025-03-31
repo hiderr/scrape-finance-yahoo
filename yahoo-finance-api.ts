@@ -16,45 +16,58 @@ import {
  */
 export class YahooFinanceAPI {
   /**
-   * Получает данные для списка тикеров
-   * @param tickers Список тикеров компаний
-   * @param limit Ограничение на количество тикеров для обработки (для тестирования)
-   * @returns Промис с данными компаний
+   * Получает данные для массива компаний
+   * @param tickers Массив тикеров компаний
+   * @returns Промис с массивом данных компаний
    */
-  async getCompaniesData(tickers: string[], limit?: number): Promise<YahooCompanyData[]> {
-    try {
-      console.log(`Получение данных для ${tickers.length} компаний...`)
+  async getCompaniesData(tickers: string[]): Promise<YahooCompanyData[]> {
+    const result: YahooCompanyData[] = []
 
-      const tickersToProcess = limit ? tickers.slice(0, limit) : tickers
-      const results: YahooCompanyData[] = []
-      const batchSize = 5
+    for (const ticker of tickers) {
+      try {
+        const companyData = await this.getCompanyData(ticker)
+        result.push(companyData)
+      } catch (error) {
+        console.error(`Ошибка при получении данных для ${ticker}:`, error)
+        // Продолжаем с следующим тикером, не прерывая весь процесс
+      }
+    }
 
-      for (let i = 0; i < tickersToProcess.length; i += batchSize) {
-        const batch = tickersToProcess.slice(i, i + batchSize)
+    return result
+  }
+
+  /**
+   * Метод для получения данных с повторными попытками
+   * @param fetchFn Функция для получения данных
+   * @param maxRetries Максимальное количество попыток
+   * @param retryDelay Задержка между попытками в миллисекундах
+   * @returns Полученные данные
+   */
+  private async fetchWithRetry<T>(
+    fetchFn: () => Promise<T>,
+    maxRetries = 3,
+    retryDelay = 2000
+  ): Promise<T> {
+    let lastError
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await fetchFn()
+      } catch (error) {
+        lastError = error
         console.log(
-          `Обработка пакета ${i / batchSize + 1} из ${Math.ceil(tickersToProcess.length / batchSize)}...`
+          `Попытка ${attempt} не удалась. ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`
         )
 
-        const batchPromises = batch.map(symbol => this.getCompanyData(symbol))
-        const batchResults = await Promise.allSettled(batchPromises)
-
-        batchResults.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            results.push(result.value)
-          } else {
-            console.error(`Ошибка при получении данных для ${batch[index]}:`, result.reason)
-          }
-        })
+        if (attempt < maxRetries) {
+          const delayTime = retryDelay * attempt
+          console.log(`Ожидание ${delayTime}мс перед следующей попыткой...`)
+          await new Promise(resolve => setTimeout(resolve, delayTime))
+        }
       }
-
-      console.log(`Получены данные для ${results.length} компаний из ${tickersToProcess.length}`)
-
-      return results
-    } catch (error) {
-      console.error('Ошибка при получении данных из Yahoo Finance API:', error)
-
-      throw error
     }
+
+    throw lastError
   }
 
   /**
@@ -62,22 +75,24 @@ export class YahooFinanceAPI {
    * @param symbol Тикер компании
    * @returns Промис с данными компании
    */
-  private async getCompanyData(symbol: string): Promise<YahooCompanyData> {
+  async getCompanyData(symbol: string): Promise<YahooCompanyData> {
     try {
       const yahooSymbol = toYahooFormat(symbol)
       console.log(`Получение данных для ${symbol} (Yahoo: ${yahooSymbol})...`)
 
-      const quote = await yahooFinance.quote(yahooSymbol)
+      const quoteResult = await this.fetchWithRetry(() => yahooFinance.quote(yahooSymbol))
       console.log(
         `Данные котировки для ${symbol}:`,
         JSON.stringify({
-          regularMarketPrice: quote.regularMarketPrice
+          regularMarketPrice: quoteResult.regularMarketPrice
         })
       )
 
-      const modulesResult = (await yahooFinance.quoteSummary(yahooSymbol, {
-        modules: ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics']
-      })) as YahooFinanceResult
+      const modulesResult = (await this.fetchWithRetry(() =>
+        yahooFinance.quoteSummary(yahooSymbol, {
+          modules: ['price', 'summaryDetail', 'financialData', 'defaultKeyStatistics']
+        })
+      )) as YahooFinanceResult
 
       console.log(
         `Данные модулей для ${symbol}:`,
@@ -88,7 +103,7 @@ export class YahooFinanceAPI {
       )
 
       const statistics: Statistics = {
-        price: (quote.regularMarketPrice || '').toString(),
+        price: (quoteResult.regularMarketPrice || '').toString(),
         marketCap: this.getFormattedValue(modulesResult.summaryDetail?.marketCap),
         beta: this.getFormattedValue(modulesResult.defaultKeyStatistics?.beta),
         peRatio: this.getFormattedValue(modulesResult.summaryDetail?.trailingPE, 'peRatio'),
