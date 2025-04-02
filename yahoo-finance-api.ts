@@ -103,17 +103,10 @@ export class YahooFinanceAPI {
       )
 
       // Получаем Payout Ratio напрямую из API
-      let payoutRatioFromAPI = 'N/A'
-      if (
-        modulesResult.summaryDetail?.payoutRatio &&
-        modulesResult.summaryDetail.payoutRatio.raw !== undefined
-      ) {
-        const payoutRatioRaw = modulesResult.summaryDetail.payoutRatio.raw
-        payoutRatioFromAPI = (payoutRatioRaw * 100).toFixed(2)
-        console.log(`Payout Ratio из API для ${symbol}: ${payoutRatioFromAPI}%`)
-      } else {
-        console.log(`Payout Ratio из API для ${symbol} недоступен.`)
-      }
+      const payoutRatioFromAPI = this.extractPayoutRatio(
+        modulesResult.summaryDetail?.payoutRatio,
+        symbol
+      )
 
       const statistics: Statistics = {
         price: (quoteResult.regularMarketPrice || '').toString(),
@@ -169,9 +162,47 @@ export class YahooFinanceAPI {
       }
     } catch (error) {
       console.error(`Ошибка при получении данных для ${symbol}:`, error)
-
       throw error
     }
+  }
+
+  /**
+   * Извлекает и форматирует значение Payout Ratio из данных API
+   * @param payoutRatioData Данные о коэффициенте выплат из API
+   * @param symbol Тикер компании для логирования
+   * @returns Отформатированное значение Payout Ratio в процентах
+   */
+  private extractPayoutRatio(payoutRatioData: unknown, symbol: string): string {
+    if (payoutRatioData === undefined || payoutRatioData === null) {
+      console.log(`Payout Ratio из API для ${symbol} недоступен.`)
+      return 'N/A'
+    }
+
+    // Случай, когда API возвращает числовое значение
+    if (typeof payoutRatioData === 'number') {
+      const payoutRatioPercent = payoutRatioData * 100
+      const formattedValue = payoutRatioPercent.toFixed(2)
+      console.log(`Payout Ratio из API для ${symbol}: ${formattedValue}%`)
+      return formattedValue
+    }
+
+    // Случай, когда API возвращает объект с полем raw
+    if (
+      typeof payoutRatioData === 'object' &&
+      payoutRatioData !== null &&
+      'raw' in payoutRatioData &&
+      typeof payoutRatioData.raw === 'number'
+    ) {
+      const payoutRatioPercent = payoutRatioData.raw * 100
+      const formattedValue = payoutRatioPercent.toFixed(2)
+      console.log(`Payout Ratio из API для ${symbol}: ${formattedValue}%`)
+      return formattedValue
+    }
+
+    console.log(
+      `Payout Ratio из API для ${symbol} имеет неизвестный формат: ${JSON.stringify(payoutRatioData)}`
+    )
+    return 'N/A'
   }
 
   /**
@@ -180,11 +211,17 @@ export class YahooFinanceAPI {
   private formatNumberForHuman(value: number): string {
     if (value >= 1000000000000) {
       return `${(value / 1000000000000).toFixed(2)}T`
-    } else if (value >= 1000000000) {
+    }
+
+    if (value >= 1000000000) {
       return `${(value / 1000000000).toFixed(2)}B`
-    } else if (value >= 1000000) {
+    }
+
+    if (value >= 1000000) {
       return `${(value / 1000000).toFixed(2)}M`
-    } else if (value >= 1000) {
+    }
+
+    if (value >= 1000) {
       return `${(value / 1000).toFixed(2)}K`
     }
 
