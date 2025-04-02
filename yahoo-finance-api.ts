@@ -202,13 +202,32 @@ export class YahooFinanceAPI {
   ): Promise<string> {
     try {
       const workbook = new ExcelJS.Workbook()
-      const filteredSheet = workbook.addWorksheet('Filtered Companies')
+      const hardFilterSheet = workbook.addWorksheet('Hard Filter')
+      const softFilterSheet = workbook.addWorksheet('Soft Filter')
       const allCompaniesSheet = workbook.addWorksheet('All Companies')
 
-      this.setupWorksheets(filteredSheet, allCompaniesSheet)
-      this.fillWorksheets(filteredSheet, allCompaniesSheet, filteredData, allData, championsData)
+      this.setupWorksheets(hardFilterSheet, softFilterSheet, allCompaniesSheet)
 
-      this.applyExcelFormatting(filteredSheet)
+      // Получаем компании с ценой ниже числа Грэма
+      const hardFilteredData = filteredData.filter(company => {
+        const grahamNumber = this.calculateGrahamNumber(company)
+        const price = this.parseNumber(company.statistics.price)
+
+        return grahamNumber !== 'N/A' && price > 0 && price < parseFloat(grahamNumber)
+      })
+
+      this.fillWorksheets(
+        hardFilterSheet,
+        softFilterSheet,
+        allCompaniesSheet,
+        hardFilteredData,
+        filteredData,
+        allData,
+        championsData
+      )
+
+      this.applyExcelFormatting(hardFilterSheet)
+      this.applyExcelFormatting(softFilterSheet)
       this.applyExcelFormatting(allCompaniesSheet)
 
       const fileName = `yahoo-finance-data-${new Date().toISOString().split('T')[0]}.xlsx`
@@ -224,11 +243,13 @@ export class YahooFinanceAPI {
 
   /**
    * Настраивает структуру таблиц Excel
-   * @param filteredSheet Лист с отфильтрованными компаниями
+   * @param hardFilterSheet Лист с компаниями, у которых цена ниже числа Грэма
+   * @param softFilterSheet Лист с отфильтрованными компаниями
    * @param allCompaniesSheet Лист со всеми компаниями
    */
   private setupWorksheets(
-    filteredSheet: ExcelJS.Worksheet,
+    hardFilterSheet: ExcelJS.Worksheet,
+    softFilterSheet: ExcelJS.Worksheet,
     allCompaniesSheet: ExcelJS.Worksheet
   ): void {
     const columns = [
@@ -237,14 +258,14 @@ export class YahooFinanceAPI {
       { header: 'Sector', key: 'Sector', width: 20 },
       { header: 'Sector Average P/E', key: 'sectorPE', width: 15 },
       { header: 'P/E actual', key: 'peActual', width: 15 },
+      { header: 'Price', key: 'price', width: 10 },
+      { header: 'Graham Number', key: 'grahamNumber', width: 15 },
       { header: 'Graham Price Diff (%)', key: 'grahamPriceDiff', width: 15 },
       { header: 'PE Ratio (TTM)', key: 'peRatio', width: 15 },
       { header: 'No Years', key: 'No Years', width: 10 },
       { header: 'Payouts/ Year', key: 'Payouts/ Year', width: 10 },
       { header: 'Div Yield', key: 'Div Yield', width: 10 },
       { header: 'Payout Ratio (%)', key: 'payoutRatio', width: 15 },
-      { header: 'Graham Number', key: 'grahamNumber', width: 15 },
-      { header: 'Price', key: 'price', width: 10 },
       { header: 'Market Cap', key: 'marketCap', width: 15 },
       { header: 'Beta', key: 'beta', width: 10 },
       { header: 'EPS', key: 'eps', width: 10 },
@@ -267,39 +288,62 @@ export class YahooFinanceAPI {
       { header: 'Free Cash Flow', key: 'freeCashFlow', width: 15 }
     ]
 
-    filteredSheet.columns = columns
+    hardFilterSheet.columns = columns
+    softFilterSheet.columns = columns
     allCompaniesSheet.columns = columns
   }
 
   /**
    * Заполняет таблицы Excel данными
-   * @param filteredSheet Лист с отфильтрованными компаниями
+   * @param hardFilterSheet Лист с компаниями с ценой ниже числа Грэма
+   * @param softFilterSheet Лист с отфильтрованными компаниями
    * @param allCompaniesSheet Лист со всеми компаниями
+   * @param hardFilteredData Компании с ценой ниже числа Грэма
    * @param filteredData Отфильтрованные данные компаний
    * @param allData Все данные компаний
    * @param championsData Данные компаний из файла чемпионов
    */
   private fillWorksheets(
-    filteredSheet: ExcelJS.Worksheet,
+    hardFilterSheet: ExcelJS.Worksheet,
+    softFilterSheet: ExcelJS.Worksheet,
     allCompaniesSheet: ExcelJS.Worksheet,
+    hardFilteredData: YahooCompanyData[],
     filteredData: YahooCompanyData[],
     allData: YahooCompanyData[],
     championsData: Map<string, ChampionData>
   ): void {
+    // Заполняем лист Hard Filter (компании с ценой ниже числа Грэма)
+    for (const company of hardFilteredData) {
+      const rowData = this.fillCompanyRow(company, championsData.get(company.symbol))
+      hardFilterSheet.addRow(rowData)
+
+      console.log(`Добавляем в Excel (Hard Filter) строку для ${company.symbol}: `, {
+        price: rowData.price,
+        grahamNumber: rowData.grahamNumber,
+        grahamPriceDiff: rowData.grahamPriceDiff
+      })
+    }
+
+    // Заполняем лист Soft Filter (все отфильтрованные компании)
     for (const company of filteredData) {
       const rowData = this.fillCompanyRow(company, championsData.get(company.symbol))
-      filteredSheet.addRow(rowData)
+      softFilterSheet.addRow(rowData)
 
-      console.log(`Добавляем в Excel строку для ${company.symbol}: `, {
+      console.log(`Добавляем в Excel (Soft Filter) строку для ${company.symbol}: `, {
         price: rowData.price,
         marketCap: rowData.marketCap,
         peRatio: rowData.peRatio
       })
     }
 
+    // Заполняем лист All Companies
     for (const company of allData) {
       allCompaniesSheet.addRow(this.fillCompanyRow(company, championsData.get(company.symbol)))
     }
+
+    console.log(`Количество компаний в Hard Filter: ${hardFilteredData.length}`)
+    console.log(`Количество компаний в Soft Filter: ${filteredData.length}`)
+    console.log(`Общее количество компаний: ${allData.length}`)
   }
 
   /**

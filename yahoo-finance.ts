@@ -8,7 +8,8 @@ enum YahooFinanceConfig {
   TICKERS_FILE = 'tickers.txt',
   EXCEL_FILE_PREFIX = 'yahoo-finance-data',
   SHEET_ALL_COMPANIES = 'All Companies',
-  SHEET_FILTERED_COMPANIES = 'Filtered Companies',
+  SHEET_HARD_FILTER = 'Hard Filter',
+  SHEET_SOFT_FILTER = 'Soft Filter',
   CHAMPION_FILE = 'Filtered-Dividend-Champions.xlsx',
   CHAMPION_SHEET = 'Filtered Champions'
 }
