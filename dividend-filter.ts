@@ -290,19 +290,38 @@ export class DividendFilter {
 
   private filterCompanies(companies: DividendCompany[]): DividendCompany[] {
     return companies.filter(company => {
+      const calculatedDgr1Y =
+        company.previousDiv > 0
+          ? ((company.currentDiv - company.previousDiv) / company.previousDiv) * 100
+          : 0
+
+      company.dgr1Y = calculatedDgr1Y
+
       if (company.noYears < FilterCriteria.MIN_YEARS) {
+        console.log(
+          `Компания ${company.symbol} отфильтрована потому что платит дивиденды ${company.noYears} лет, меньше чем ${FilterCriteria.MIN_YEARS} лет`
+        )
         return false
       }
 
       if (company.divYield < FilterCriteria.MIN_YIELD) {
+        console.log(
+          `Компания ${company.symbol} отфильтрована потому что дивидендная доходность ${company.divYield}% меньше ${FilterCriteria.MIN_YIELD}%`
+        )
         return false
       }
 
       if (company.payoutsPerYear < FilterCriteria.MIN_PAYOUTS_PER_YEAR) {
+        console.log(
+          `Компания ${company.symbol} отфильтрована потому что выплачивает дивиденды ${company.payoutsPerYear} раз в год`
+        )
         return false
       }
 
       if (company.dgr1Y < FilterCriteria.MIN_DGR_1Y) {
+        console.log(
+          `Компания ${company.symbol} отфильтрована потому что рост дивидендов за 1 год ${company.dgr1Y}% меньше ${FilterCriteria.MIN_DGR_1Y}%`
+        )
         return false
       }
 
@@ -371,6 +390,14 @@ export class DividendFilter {
       const rowData = outputHeaders.map(header => {
         if (header === 'Sector Average P/E') {
           return company.sectorPE?.toFixed(2) || ''
+        }
+        // Используем расчитанное значение DGR 1Y
+        if (header === 'DGR 1Y') {
+          // Проверка, что у нас есть previousDiv для расчета DGR 1Y
+          if (company.previousDiv > 0) {
+            return company.dgr1Y.toFixed(2)
+          }
+          return ''
         }
 
         return company[header] || ''

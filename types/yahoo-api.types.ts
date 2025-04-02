@@ -34,6 +34,7 @@ export interface YahooCompanyData {
   statistics: Statistics
   valuation: Valuation
   financials: FinancialHighlights
+  payoutRatio?: string
 }
 
 export interface FinancialValue {
@@ -49,6 +50,7 @@ export interface YahooFinanceResult {
     priceToSalesTrailing12Months?: { fmt?: string; raw?: number }
     dividendRate?: { fmt?: string; raw?: number }
     exDividendDate?: { fmt?: string; raw?: Date }
+    payoutRatio?: { fmt?: string; raw?: number }
   }
   defaultKeyStatistics?: {
     beta?: { fmt?: string; raw?: number }

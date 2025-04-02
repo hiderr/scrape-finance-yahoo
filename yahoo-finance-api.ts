@@ -102,6 +102,19 @@ export class YahooFinanceAPI {
         })
       )
 
+      // Получаем Payout Ratio напрямую из API
+      let payoutRatioFromAPI = 'N/A'
+      if (
+        modulesResult.summaryDetail?.payoutRatio &&
+        modulesResult.summaryDetail.payoutRatio.raw !== undefined
+      ) {
+        const payoutRatioRaw = modulesResult.summaryDetail.payoutRatio.raw
+        payoutRatioFromAPI = (payoutRatioRaw * 100).toFixed(2)
+        console.log(`Payout Ratio из API для ${symbol}: ${payoutRatioFromAPI}%`)
+      } else {
+        console.log(`Payout Ratio из API для ${symbol} недоступен.`)
+      }
+
       const statistics: Statistics = {
         price: (quoteResult.regularMarketPrice || '').toString(),
         marketCap: this.getFormattedValue(modulesResult.summaryDetail?.marketCap),
@@ -151,7 +164,8 @@ export class YahooFinanceAPI {
         symbol,
         statistics,
         valuation,
-        financials
+        financials,
+        payoutRatio: payoutRatioFromAPI
       }
     } catch (error) {
       console.error(`Ошибка при получении данных для ${symbol}:`, error)
@@ -452,21 +466,14 @@ export class YahooFinanceAPI {
     return exDivDate
   }
 
-  private calculatePayoutRatio(
-    championData: ChampionData | undefined,
-    company: YahooCompanyData
-  ): string {
-    try {
-      const eps = this.parseNumber(company.statistics.eps)
-      const dividend = this.parseNumber(company.statistics.dividend)
-
-      if (eps <= 0 || dividend <= 0) return 'N/A'
-
-      return ((dividend / eps) * 100).toFixed(2)
-    } catch (e) {
-      console.log('Ошибка при расчете коэффициента выплаты дивидендов из данных Yahoo:', e)
-      return 'N/A'
+  private calculatePayoutRatio(company: YahooCompanyData): string {
+    // Используем значение payoutRatio напрямую из API
+    if (company.payoutRatio && company.payoutRatio !== 'N/A') {
+      return company.payoutRatio
     }
+
+    // Если данных из API нет, возвращаем N/A
+    return 'N/A'
   }
 
   /**
@@ -515,7 +522,7 @@ export class YahooFinanceAPI {
 
     const exDivDate = championData?.['Ex-Date'] || company.statistics.exDivDate
     const formattedExDivDate = this.formatExDivDate(exDivDate)
-    const payoutRatio = this.calculatePayoutRatio(championData, company)
+    const payoutRatio = this.calculatePayoutRatio(company)
     const grahamNumber = this.calculateGrahamNumber(company)
 
     // Расчет разницы между текущей ценой и числом Грэма (в процентах)

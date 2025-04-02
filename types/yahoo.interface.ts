@@ -76,6 +76,7 @@ export interface YahooCompanyData {
   valuation: Valuation
   financials: FinancialHighlights
   operatingIncome?: OperatingIncome
+  payoutRatio?: string
 }
 
 /**
@@ -97,6 +98,7 @@ export interface YahooFinanceResult {
     priceToSalesTrailing12Months?: { fmt?: string; raw?: number }
     dividendRate?: { fmt?: string; raw?: number }
     exDividendDate?: { fmt?: string; raw?: Date }
+    payoutRatio?: { fmt?: string; raw?: number }
   }
   defaultKeyStatistics?: {
     beta?: { fmt?: string; raw?: number }
@@ -106,6 +108,7 @@ export interface YahooFinanceResult {
     priceToBook?: { fmt?: string; raw?: number }
     enterpriseToRevenue?: { fmt?: string; raw?: number }
     enterpriseToEbitda?: { fmt?: string; raw?: number }
+    payoutRatio?: { fmt?: string; raw?: number }
   }
   financialData?: {
     profitMargins?: { fmt?: string; raw?: number }
