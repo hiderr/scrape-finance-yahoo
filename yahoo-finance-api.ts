@@ -503,16 +503,6 @@ export class YahooFinanceAPI {
     return exDivDate
   }
 
-  private calculatePayoutRatio(company: YahooCompanyData): string {
-    // Используем значение payoutRatio напрямую из API
-    if (company.payoutRatio && company.payoutRatio !== 'N/A') {
-      return company.payoutRatio
-    }
-
-    // Если данных из API нет, возвращаем N/A
-    return 'N/A'
-  }
-
   /**
    * Расчет числа Грэма
    * Число Грэма = √(22.5 * EPS * Book Value per Share)
@@ -559,7 +549,10 @@ export class YahooFinanceAPI {
 
     const exDivDate = championData?.['Ex-Date'] || company.statistics.exDivDate
     const formattedExDivDate = this.formatExDivDate(exDivDate)
-    const payoutRatio = this.calculatePayoutRatio(company)
+
+    // Всегда используем payoutRatio из API, с проверкой на undefined
+    const payoutRatio = company.payoutRatio || 'N/A'
+
     const grahamNumber = this.calculateGrahamNumber(company)
 
     // Расчет разницы между текущей ценой и числом Грэма (в процентах)
