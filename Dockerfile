@@ -6,13 +6,21 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Копируем tsconfig.json
+# Копируем конфигурационные файлы
 COPY tsconfig.json ./
+COPY .env ./
 
-# Создаем папку src и копируем в нее исходники
-COPY src ./src
+# Копируем все исходные файлы
+COPY *.ts ./
+COPY tickers.txt ./
+COPY U.S.DividendChampions-LIVE.xlsx ./
+COPY types/ ./types/
+COPY utils/ ./utils/
+COPY constants/ ./constants/
 
-# Компилируем TypeScript в JavaScript
-RUN npm run build
+# Создаем скрипт для запуска
+COPY run-scripts.sh ./
+RUN chmod +x run-scripts.sh
 
-CMD ["node", "dist/index.js"] 
+# Запускаем скрипты
+CMD ["./run-scripts.sh"] 
