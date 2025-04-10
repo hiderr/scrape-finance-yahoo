@@ -11,6 +11,8 @@ import {
   FinancialValue
 } from './types/yahoo-api.types'
 
+import { YahooFinanceConfig } from './yahoo-finance'
+
 /**
  * Класс для работы с Yahoo Finance API через пакет yahoo-finance2
  */
@@ -281,7 +283,7 @@ export class YahooFinanceAPI {
       this.applyExcelFormatting(softFilterSheet)
       this.applyExcelFormatting(allCompaniesSheet)
 
-      const fileName = `yahoo-finance-data-${new Date().toISOString().split('T')[0]}.xlsx`
+      const fileName = `${YahooFinanceConfig.EXCEL_FILE_PREFIX}.xlsx`
       await workbook.xlsx.writeFile(fileName)
 
       return fileName

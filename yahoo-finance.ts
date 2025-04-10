@@ -4,7 +4,7 @@ import { YahooCompanyData } from './types/yahoo-api.types'
 import { ChampionData } from './types/champion-data.interface'
 import { YahooFinanceAPI } from './yahoo-finance-api'
 
-enum YahooFinanceConfig {
+export enum YahooFinanceConfig {
   TICKERS_FILE = 'tickers.txt',
   EXCEL_FILE_PREFIX = 'yahoo-finance-data',
   SHEET_ALL_COMPANIES = 'All Companies',
