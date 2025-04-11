@@ -21,23 +21,15 @@ COPY types/ ./types/
 COPY utils/ ./utils/
 COPY constants/ ./constants/
 
-# Создаем скрипт для запуска
+# Копируем скрипт для запуска
 COPY run-scripts.sh ./
 RUN chmod +x run-scripts.sh
 
-# Создаем файл для настройки cron
-RUN echo "#!/bin/bash\n\
-CRON_SCHEDULE=\${CRON_SCHEDULE:-\"0 9 * * 5\"}\n\
-echo \"\$CRON_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1\" > /etc/cron.d/filter-dividend-champions\n\
-chmod 0644 /etc/cron.d/filter-dividend-champions\n\
-crontab /etc/cron.d/filter-dividend-champions\n\
-echo \"Cron настроен с расписанием: \$CRON_SCHEDULE\"\n\
-cron\n\
-tail -f /app/cron.log\n" > /app/start.sh
-RUN chmod +x /app/start.sh
-
-# Устанавливаем значение по умолчанию
+# Устанавливаем значение по умолчанию для CRON_SCHEDULE
 ENV CRON_SCHEDULE="0 9 * * 5"
 
-# Запускаем скрипт настройки cron и мониторинга логов через bash
-CMD ["/bin/bash", "/app/start.sh"] 
+# Создаем файл для логов
+RUN touch /app/cron.log
+
+# Команда для запуска cron и логирования
+CMD bash -c 'echo "$CRON_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1" > /etc/cron.d/filter-dividend-champions && chmod 0644 /etc/cron.d/filter-dividend-champions && crontab /etc/cron.d/filter-dividend-champions && echo "Cron настроен с расписанием: $CRON_SCHEDULE" && cron && tail -f /app/cron.log' 
