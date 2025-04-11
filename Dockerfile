@@ -14,7 +14,6 @@ RUN npm install
 
 # Копируем конфигурационные файлы
 COPY tsconfig.json ./
-COPY .env ./
 
 # Копируем все исходные файлы
 COPY *.ts ./
