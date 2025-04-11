@@ -52,6 +52,8 @@ jobs:
             if [ ! -f .env ]; then
               echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
               echo "TELEGRAM_CHANNEL_ID=${{ secrets.TELEGRAM_CHANNEL_ID }}" >> .env
+              # Можно установить свое расписание, например "*/5 * * * *" для запуска каждые 5 минут
+              echo "CRON_SCHEDULE=0 9 * * 5" >> .env
             fi
 
             # Создаем docker-compose.yml, если его нет
@@ -69,6 +71,7 @@ jobs:
               echo '      - NODE_ENV=production' >> docker-compose.yml
               echo '      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}' >> docker-compose.yml
               echo '      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}' >> docker-compose.yml
+              echo '      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 9 * * 5}' >> docker-compose.yml
               echo '    extra_hosts:' >> docker-compose.yml
               echo '      - '"'"'host.docker.internal:host-gateway'"'"'' >> docker-compose.yml
               echo '    volumes:' >> docker-compose.yml
@@ -80,9 +83,18 @@ jobs:
               echo '        max-file: '"'"'3'"'"'' >> docker-compose.yml
             fi
 
-            # Создаем папку для данных, если её нет
+            # Создаем папку для данных и файл для логов
             mkdir -p data
+            touch cron.log
+            chmod 666 cron.log  # Разрешение для записи из контейнера
 
             # Перезапускаем контейнер через docker-compose
             docker-compose down
             docker-compose up -d
+
+            echo "Контейнер запущен. Логи будут доступны в файле cron.log."
+            echo "Для ручного запуска скрипта выполните:"
+            echo "docker exec filter-dividend-champions /app/run-scripts.sh"
+            echo ""
+            echo "Для проверки статуса cron выполните:"
+            echo "docker exec filter-dividend-champions crontab -l"

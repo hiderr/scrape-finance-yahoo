@@ -25,13 +25,19 @@ COPY constants/ ./constants/
 COPY run-scripts.sh ./
 RUN chmod +x run-scripts.sh
 
-# Создаем cron-задачу для запуска скрипта каждую пятницу в 9:00 утра
-RUN echo "0 9 * * 5 /app/run-scripts.sh >> /var/log/cron.log 2>&1" > /etc/cron.d/filter-dividend-champions
-RUN chmod 0644 /etc/cron.d/filter-dividend-champions
-RUN crontab /etc/cron.d/filter-dividend-champions
+# Создаем файл для настройки cron
+RUN echo "#!/bin/bash\n\
+CRON_SCHEDULE=\${CRON_SCHEDULE:-\"0 9 * * 5\"}\n\
+echo \"\$CRON_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1\" > /etc/cron.d/filter-dividend-champions\n\
+chmod 0644 /etc/cron.d/filter-dividend-champions\n\
+crontab /etc/cron.d/filter-dividend-champions\n\
+echo \"Cron настроен с расписанием: \$CRON_SCHEDULE\"\n\
+cron\n\
+tail -f /app/cron.log\n" > /app/start.sh
+RUN chmod +x /app/start.sh
 
-# Создаем файл для логов
-RUN touch /var/log/cron.log
+# Устанавливаем значение по умолчанию
+ENV CRON_SCHEDULE="0 9 * * 5"
 
-# Запускаем cron в фоновом режиме и запускаем tail для вывода логов
-CMD cron && tail -f /var/log/cron.log 
+# Запускаем скрипт настройки cron и мониторинга логов
+CMD ["/app/start.sh"] 
