@@ -39,5 +39,5 @@ RUN chmod +x /app/start.sh
 # Устанавливаем значение по умолчанию
 ENV CRON_SCHEDULE="0 9 * * 5"
 
-# Запускаем скрипт настройки cron и мониторинга логов
-CMD ["/app/start.sh"] 
+# Запускаем скрипт настройки cron и мониторинга логов через bash
+CMD ["/bin/bash", "/app/start.sh"] 
