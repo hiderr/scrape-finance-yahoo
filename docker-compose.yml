@@ -1,17 +1,26 @@
 version: '3.3'
 
 services:
-  app:
+  filter-dividend-champions:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: investment-scripts
+    image: localhost:5000/filter-dividend-champions:latest
+    container_name: filter-dividend-champions
+    restart: always
+    working_dir: /app
     environment:
+      - TZ=Europe/Berlin
       - NODE_ENV=production
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
-      - ./:/app/data
-    restart: 'no'
+      - .:/app
+    # Логи cron-заданий
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'

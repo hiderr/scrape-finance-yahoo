@@ -41,8 +41,48 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SERVER_SSH_PORT }}
           script: |
+            # Переходим в рабочую директорию
+            mkdir -p /root/work/tg-channels/filter-dividend-champions
+            cd /root/work/tg-channels/filter-dividend-champions
+
+            # Получаем последний образ из локального реестра
             docker pull localhost:5000/filter-dividend-champions:latest
 
-            cd /root/work/tg-channels/mindbodygreen
+            # Проверяем наличие файла .env, создаем если отсутствует
+            if [ ! -f .env ]; then
+              echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
+              echo "TELEGRAM_CHANNEL_ID=${{ secrets.TELEGRAM_CHANNEL_ID }}" >> .env
+            fi
+
+            # Создаем docker-compose.yml, если его нет
+            if [ ! -f docker-compose.yml ]; then
+              echo 'version: '"'"'3.3'"'"'' > docker-compose.yml
+              echo '' >> docker-compose.yml
+              echo 'services:' >> docker-compose.yml
+              echo '  filter-dividend-champions:' >> docker-compose.yml
+              echo '    image: localhost:5000/filter-dividend-champions:latest' >> docker-compose.yml
+              echo '    container_name: filter-dividend-champions' >> docker-compose.yml
+              echo '    restart: always' >> docker-compose.yml
+              echo '    working_dir: /app' >> docker-compose.yml
+              echo '    environment:' >> docker-compose.yml
+              echo '      - TZ=Europe/Berlin' >> docker-compose.yml
+              echo '      - NODE_ENV=production' >> docker-compose.yml
+              echo '      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}' >> docker-compose.yml
+              echo '      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}' >> docker-compose.yml
+              echo '    extra_hosts:' >> docker-compose.yml
+              echo '      - '"'"'host.docker.internal:host-gateway'"'"'' >> docker-compose.yml
+              echo '    volumes:' >> docker-compose.yml
+              echo '      - .:/app' >> docker-compose.yml
+              echo '    logging:' >> docker-compose.yml
+              echo '      driver: '"'"'json-file'"'"'' >> docker-compose.yml
+              echo '      options:' >> docker-compose.yml
+              echo '        max-size: '"'"'10m'"'"'' >> docker-compose.yml
+              echo '        max-file: '"'"'3'"'"'' >> docker-compose.yml
+            fi
+
+            # Создаем папку для данных, если её нет
+            mkdir -p data
+
+            # Перезапускаем контейнер через docker-compose
             docker-compose down
             docker-compose up -d
