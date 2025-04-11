@@ -57,6 +57,8 @@ jobs:
               echo "Создан новый файл .env со значениями по умолчанию"
             else
               echo "Используем существующий файл .env с пользовательскими настройками"
+              # Выводим текущее значение CRON_SCHEDULE для отладки
+              grep CRON_SCHEDULE .env || echo "CRON_SCHEDULE не найден в .env"
             fi
 
             # Создаем docker-compose.yml, если его нет
@@ -69,6 +71,8 @@ jobs:
               echo '    container_name: filter-dividend-champions' >> docker-compose.yml
               echo '    restart: always' >> docker-compose.yml
               echo '    working_dir: /app' >> docker-compose.yml
+              echo '    env_file:' >> docker-compose.yml
+              echo '      - .env' >> docker-compose.yml
               echo '    environment:' >> docker-compose.yml
               echo '      - TZ=Europe/Berlin' >> docker-compose.yml
               echo '      - NODE_ENV=production' >> docker-compose.yml
@@ -94,6 +98,10 @@ jobs:
             # Перезапускаем контейнер через docker-compose
             docker-compose down
             docker-compose up -d
+
+            # Проверяем, какие переменные окружения доступны контейнеру
+            echo "Переменные окружения в контейнере:"
+            docker exec filter-dividend-champions env | grep CRON_SCHEDULE || echo "CRON_SCHEDULE не найден в переменных контейнера"
 
             echo "Контейнер запущен. Логи будут доступны в файле cron.log."
             echo "Для ручного запуска скрипта выполните:"

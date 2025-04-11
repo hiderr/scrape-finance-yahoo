@@ -25,11 +25,16 @@ COPY constants/ ./constants/
 COPY run-scripts.sh ./
 RUN chmod +x run-scripts.sh
 
-# Значение по умолчанию для CRON_SCHEDULE (переопределяется из .env через docker-compose)
-ENV CRON_SCHEDULE="0 9 * * 5"
-
 # Создаем файл для логов
 RUN touch /app/cron.log
 
 # Команда для запуска cron и логирования
-CMD bash -c 'echo "$CRON_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1" > /etc/cron.d/filter-dividend-champions && chmod 0644 /etc/cron.d/filter-dividend-champions && crontab /etc/cron.d/filter-dividend-champions && echo "Cron настроен с расписанием: $CRON_SCHEDULE" && cron && tail -f /app/cron.log' 
+CMD bash -c 'DEFAULT_SCHEDULE="0 9 * * 5"; \
+    FINAL_SCHEDULE=${CRON_SCHEDULE:-$DEFAULT_SCHEDULE}; \
+    echo "Используется расписание: $FINAL_SCHEDULE (из переменной окружения или значение по умолчанию)"; \
+    echo "$FINAL_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1" > /etc/cron.d/filter-dividend-champions; \
+    chmod 0644 /etc/cron.d/filter-dividend-champions; \
+    crontab /etc/cron.d/filter-dividend-champions; \
+    echo "Cron настроен с расписанием: $FINAL_SCHEDULE"; \
+    cron; \
+    tail -f /app/cron.log' 
