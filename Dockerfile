@@ -28,13 +28,25 @@ RUN chmod +x run-scripts.sh
 # Создаем файл для логов
 RUN touch /app/cron.log
 
+# Создаем скрипт для настройки и запуска cron
+COPY <<-"EOF" /app/entrypoint.sh
+#!/bin/bash
+DEFAULT_SCHEDULE="0 9 * * 5"
+FINAL_SCHEDULE="${CRON_SCHEDULE:-$DEFAULT_SCHEDULE}"
+
+# Удаляем кавычки из значения, если они есть
+FINAL_SCHEDULE=$(echo "$FINAL_SCHEDULE" | tr -d '"'"'"')
+
+echo "Используется расписание: $FINAL_SCHEDULE (из переменной окружения или значение по умолчанию)"
+echo "$FINAL_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1" > /etc/cron.d/filter-dividend-champions
+chmod 0644 /etc/cron.d/filter-dividend-champions
+crontab /etc/cron.d/filter-dividend-champions
+echo "Cron настроен с расписанием: $FINAL_SCHEDULE"
+cron
+tail -f /app/cron.log
+EOF
+
+RUN chmod +x /app/entrypoint.sh
+
 # Команда для запуска cron и логирования
-CMD bash -c 'DEFAULT_SCHEDULE="0 9 * * 5"; \
-    FINAL_SCHEDULE=${CRON_SCHEDULE:-$DEFAULT_SCHEDULE}; \
-    echo "Используется расписание: $FINAL_SCHEDULE (из переменной окружения или значение по умолчанию)"; \
-    echo "$FINAL_SCHEDULE /app/run-scripts.sh >> /app/cron.log 2>&1" > /etc/cron.d/filter-dividend-champions; \
-    chmod 0644 /etc/cron.d/filter-dividend-champions; \
-    crontab /etc/cron.d/filter-dividend-champions; \
-    echo "Cron настроен с расписанием: $FINAL_SCHEDULE"; \
-    cron; \
-    tail -f /app/cron.log' 
+CMD ["/app/entrypoint.sh"] 

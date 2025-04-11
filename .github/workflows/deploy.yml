@@ -53,7 +53,7 @@ jobs:
               echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
               echo "TELEGRAM_CHANNEL_ID=${{ secrets.TELEGRAM_CHANNEL_ID }}" >> .env
               # Добавляем CRON_SCHEDULE только при создании нового файла
-              echo "CRON_SCHEDULE=0 9 * * 5" >> .env
+              echo 'CRON_SCHEDULE="0 9 * * 5"' >> .env
               echo "Создан новый файл .env со значениями по умолчанию"
             else
               echo "Используем существующий файл .env с пользовательскими настройками"
@@ -94,6 +94,15 @@ jobs:
             mkdir -p data
             touch cron.log
             chmod 666 cron.log  # Разрешение для записи из контейнера
+
+            # Проверяем содержимое .env файла
+            echo "Содержимое файла .env:"
+            cat .env
+
+            # Проверяем, что переменная окружения устанавливается в docker-compose
+            echo "Экспортируем переменную из .env в текущую оболочку:"
+            export $(grep -v '^#' .env | xargs)
+            echo "Значение CRON_SCHEDULE в текущей оболочке: $CRON_SCHEDULE"
 
             # Перезапускаем контейнер через docker-compose
             docker-compose down
