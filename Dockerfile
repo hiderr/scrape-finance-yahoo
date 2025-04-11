@@ -25,7 +25,7 @@ COPY constants/ ./constants/
 COPY run-scripts.sh ./
 RUN chmod +x run-scripts.sh
 
-# Устанавливаем значение по умолчанию для CRON_SCHEDULE
+# Значение по умолчанию для CRON_SCHEDULE (переопределяется из .env через docker-compose)
 ENV CRON_SCHEDULE="0 9 * * 5"
 
 # Создаем файл для логов

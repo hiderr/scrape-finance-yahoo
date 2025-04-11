@@ -52,8 +52,11 @@ jobs:
             if [ ! -f .env ]; then
               echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
               echo "TELEGRAM_CHANNEL_ID=${{ secrets.TELEGRAM_CHANNEL_ID }}" >> .env
-              # Можно установить свое расписание, например "*/5 * * * *" для запуска каждые 5 минут
+              # Добавляем CRON_SCHEDULE только при создании нового файла
               echo "CRON_SCHEDULE=0 9 * * 5" >> .env
+              echo "Создан новый файл .env со значениями по умолчанию"
+            else
+              echo "Используем существующий файл .env с пользовательскими настройками"
             fi
 
             # Создаем docker-compose.yml, если его нет
@@ -71,7 +74,7 @@ jobs:
               echo '      - NODE_ENV=production' >> docker-compose.yml
               echo '      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}' >> docker-compose.yml
               echo '      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}' >> docker-compose.yml
-              echo '      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 9 * * 5}' >> docker-compose.yml
+              echo '      - CRON_SCHEDULE=${CRON_SCHEDULE}' >> docker-compose.yml
               echo '    extra_hosts:' >> docker-compose.yml
               echo '      - '"'"'host.docker.internal:host-gateway'"'"'' >> docker-compose.yml
               echo '    volumes:' >> docker-compose.yml

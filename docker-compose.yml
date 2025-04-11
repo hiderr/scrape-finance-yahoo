@@ -14,7 +14,7 @@ services:
       - NODE_ENV=production
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
-      - CRON_SCHEDULE=${CRON_SCHEDULE:-0 9 * * 5}
+      - CRON_SCHEDULE=${CRON_SCHEDULE}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
