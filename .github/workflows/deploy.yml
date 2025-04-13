@@ -77,12 +77,20 @@ jobs:
               echo '      - '"'"'host.docker.internal:host-gateway'"'"'' >> docker-compose.yml
               echo '    volumes:' >> docker-compose.yml
               echo '      - ./data:/app/data' >> docker-compose.yml
+              echo '      - ./run-scripts.sh:/app/run-scripts.sh' >> docker-compose.yml
               echo '    logging:' >> docker-compose.yml
               echo '      driver: '"'"'json-file'"'"'' >> docker-compose.yml
               echo '      options:' >> docker-compose.yml
               echo '        max-size: '"'"'10m'"'"'' >> docker-compose.yml
               echo '        max-file: '"'"'3'"'"'' >> docker-compose.yml
             fi
+
+            # Извлекаем скрипт run-scripts.sh из образа Docker
+            echo "Извлекаем run-scripts.sh из образа Docker..."
+            docker create --name temp-container localhost:5000/filter-dividend-champions:latest
+            docker cp temp-container:/app/run-scripts.sh ./run-scripts.sh
+            docker rm temp-container
+            chmod +x run-scripts.sh
 
             # Создаем скрипт запуска cron без heredoc, используя echo
             echo '#!/bin/bash' > cron-docker-run.sh
@@ -104,7 +112,7 @@ jobs:
             echo 'echo "[$START_TIME] Запуск контейнера filter-dividend-champions" >> $LOG_FILE' >> cron-docker-run.sh
             echo '' >> cron-docker-run.sh
             echo '# Запускаем контейнер' >> cron-docker-run.sh
-            echo 'docker-compose up --force-recreate --no-deps' >> cron-docker-run.sh
+            echo 'docker-compose up --force-recreate --no-deps --abort-on-container-exit' >> cron-docker-run.sh
             echo '' >> cron-docker-run.sh
             echo '# Записываем окончание работы в лог' >> cron-docker-run.sh
             echo 'END_TIME=$(date "+%Y-%m-%d %H:%M:%S")' >> cron-docker-run.sh

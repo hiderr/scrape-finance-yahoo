@@ -19,7 +19,7 @@ services:
       - 'host.docker.internal:host-gateway'
     volumes:
       - ./data:/app/data
-      # Монтируем только директорию с данными
+      - ./run-scripts.sh:/app/run-scripts.sh
     logging:
       driver: 'json-file'
       options:
