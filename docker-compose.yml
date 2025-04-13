@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile
     image: localhost:5000/filter-dividend-champions:latest
     container_name: filter-dividend-champions
-    restart: always
     working_dir: /app
     env_file:
       - .env
@@ -16,12 +15,11 @@ services:
       - NODE_ENV=production
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}
-      - CRON_SCHEDULE=${CRON_SCHEDULE}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
     volumes:
-      - .:/app
-    # Логи cron-заданий
+      - ./data:/app/data
+      # Монтируем только директорию с данными
     logging:
       driver: 'json-file'
       options:

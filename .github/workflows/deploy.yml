@@ -52,13 +52,9 @@ jobs:
             if [ ! -f .env ]; then
               echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
               echo "TELEGRAM_CHANNEL_ID=${{ secrets.TELEGRAM_CHANNEL_ID }}" >> .env
-              # Добавляем CRON_SCHEDULE только при создании нового файла
-              echo 'CRON_SCHEDULE="0 9 * * 5"' >> .env
               echo "Создан новый файл .env со значениями по умолчанию"
             else
               echo "Используем существующий файл .env с пользовательскими настройками"
-              # Выводим текущее значение CRON_SCHEDULE для отладки
-              grep CRON_SCHEDULE .env || echo "CRON_SCHEDULE не найден в .env"
             fi
 
             # Создаем docker-compose.yml, если его нет
@@ -69,7 +65,6 @@ jobs:
               echo '  filter-dividend-champions:' >> docker-compose.yml
               echo '    image: localhost:5000/filter-dividend-champions:latest' >> docker-compose.yml
               echo '    container_name: filter-dividend-champions' >> docker-compose.yml
-              echo '    restart: always' >> docker-compose.yml
               echo '    working_dir: /app' >> docker-compose.yml
               echo '    env_file:' >> docker-compose.yml
               echo '      - .env' >> docker-compose.yml
@@ -78,11 +73,10 @@ jobs:
               echo '      - NODE_ENV=production' >> docker-compose.yml
               echo '      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}' >> docker-compose.yml
               echo '      - TELEGRAM_CHANNEL_ID=${TELEGRAM_CHANNEL_ID}' >> docker-compose.yml
-              echo '      - CRON_SCHEDULE=${CRON_SCHEDULE}' >> docker-compose.yml
               echo '    extra_hosts:' >> docker-compose.yml
               echo '      - '"'"'host.docker.internal:host-gateway'"'"'' >> docker-compose.yml
               echo '    volumes:' >> docker-compose.yml
-              echo '      - .:/app' >> docker-compose.yml
+              echo '      - ./data:/app/data' >> docker-compose.yml
               echo '    logging:' >> docker-compose.yml
               echo '      driver: '"'"'json-file'"'"'' >> docker-compose.yml
               echo '      options:' >> docker-compose.yml
@@ -90,31 +84,44 @@ jobs:
               echo '        max-file: '"'"'3'"'"'' >> docker-compose.yml
             fi
 
-            # Создаем папку для данных и файл для логов
+            # Создаем скрипт запуска cron без heredoc, используя echo
+            echo '#!/bin/bash' > cron-docker-run.sh
+            echo '# Скрипт для запуска docker-compose по cron' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Устанавливаем рабочую директорию' >> cron-docker-run.sh
+            echo 'cd /root/work/tg-channels/filter-dividend-champions' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Задаем время начала для логов' >> cron-docker-run.sh
+            echo 'START_TIME=$(date "+%Y-%m-%d %H:%M:%S")' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Лог-файл для вывода' >> cron-docker-run.sh
+            echo 'LOG_FILE="./data/docker-cron.log"' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Создаем директорию для логов, если её нет' >> cron-docker-run.sh
+            echo 'mkdir -p ./data' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Записываем время запуска в лог' >> cron-docker-run.sh
+            echo 'echo "[$START_TIME] Запуск контейнера filter-dividend-champions" >> $LOG_FILE' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Запускаем контейнер' >> cron-docker-run.sh
+            echo 'docker-compose up --force-recreate --no-deps' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Записываем окончание работы в лог' >> cron-docker-run.sh
+            echo 'END_TIME=$(date "+%Y-%m-%d %H:%M:%S")' >> cron-docker-run.sh
+            echo 'echo "[$END_TIME] Контейнер filter-dividend-champions завершил работу" >> $LOG_FILE' >> cron-docker-run.sh
+            echo '' >> cron-docker-run.sh
+            echo '# Удаляем контейнер после завершения' >> cron-docker-run.sh
+            echo 'docker-compose down' >> cron-docker-run.sh
+            echo 'echo "[$END_TIME] Контейнер остановлен и удален" >> $LOG_FILE' >> cron-docker-run.sh
+
+            chmod +x cron-docker-run.sh
             mkdir -p data
-            touch cron.log
-            chmod 666 cron.log  # Разрешение для записи из контейнера
 
-            # Проверяем содержимое .env файла
-            echo "Содержимое файла .env:"
-            cat .env
+            # Настраиваем cron для запуска скрипта каждый день в 9 утра
+            CRON_JOB="0 9 * * * /root/work/tg-channels/filter-dividend-champions/cron-docker-run.sh > /dev/null 2>&1"
+            (crontab -l 2>/dev/null | grep -v "filter-dividend-champions" || true; echo "$CRON_JOB") | crontab -
 
-            # Проверяем, что переменная окружения устанавливается в docker-compose
-            echo "Экспортируем переменную из .env в текущую оболочку:"
-            export $(grep -v '^#' .env | xargs)
-            echo "Значение CRON_SCHEDULE в текущей оболочке: $CRON_SCHEDULE"
-
-            # Перезапускаем контейнер через docker-compose
-            docker-compose down
-            docker-compose up -d
-
-            # Проверяем, какие переменные окружения доступны контейнеру
-            echo "Переменные окружения в контейнере:"
-            docker exec filter-dividend-champions env | grep CRON_SCHEDULE || echo "CRON_SCHEDULE не найден в переменных контейнера"
-
-            echo "Контейнер запущен. Логи будут доступны в файле cron.log."
-            echo "Для ручного запуска скрипта выполните:"
-            echo "docker exec filter-dividend-champions /app/run-scripts.sh"
-            echo ""
-            echo "Для проверки статуса cron выполните:"
-            echo "docker exec filter-dividend-champions crontab -l"
+            echo "Настроен запуск контейнера по cron каждый день в 9:00 утра"
+            echo "Логи работы будут доступны в файле /root/work/tg-channels/filter-dividend-champions/data/docker-cron.log"
+            echo "Для тестового запуска скрипта выполните:"
+            echo "/root/work/tg-channels/filter-dividend-champions/cron-docker-run.sh"
